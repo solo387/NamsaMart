@@ -13,8 +13,20 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     return;
   }
 
+  let payload: TokenPayload;
   try {
-    const payload = jwt.verify(header.slice(7), config.JWT_SECRET) as TokenPayload;
+    const verified = jwt.verify(header.slice(7), config.JWT_SECRET);
+    if (typeof verified === "string" || typeof verified.sub !== "string") {
+      res.status(401).json({ error: "Session is invalid or expired. Please sign in again." });
+      return;
+    }
+    payload = { sub: verified.sub };
+  } catch {
+    res.status(401).json({ error: "Session is invalid or expired. Please sign in again." });
+    return;
+  }
+
+  try {
     const user = await prisma.user.findUnique({
       where: { id: payload.sub },
       select: { id: true, role: true, department: true, level: true, email: true, name: true }
@@ -25,8 +37,8 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     }
     req.user = user;
     next();
-  } catch {
-    res.status(401).json({ error: "Session is invalid or expired. Please sign in again." });
+  } catch (error) {
+    next(error);
   }
 }
 

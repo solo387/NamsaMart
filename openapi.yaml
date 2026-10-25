@@ -11,10 +11,23 @@ paths:
   /health:
     get:
       security: []
-      summary: Health check
+      summary: API liveness check
       responses:
         "200":
           description: API is available
+  /health/live:
+    get:
+      security: []
+      summary: Liveness probe
+      responses:
+        "200": { description: API process is running }
+  /health/ready:
+    get:
+      security: []
+      summary: Readiness probe
+      responses:
+        "200": { description: API and PostgreSQL are ready }
+        "503": { description: Database is unavailable }
   /auth/register:
     post:
       security: []

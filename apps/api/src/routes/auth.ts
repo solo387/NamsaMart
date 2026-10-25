@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
+import rateLimit from "express-rate-limit";
 import { Router } from "express";
 import nodemailer from "nodemailer";
 import { loginSchema, profileSchema, registerSchema } from "@namsamart/shared";
@@ -14,8 +15,26 @@ const router = Router();
 const safeUser = {
   id: true, name: true, email: true, role: true, department: true, level: true, avatarUrl: true
 } as const;
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false
+});
+const registrationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false
+});
+const passwordResetLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false
+});
 
-router.post("/register", validateBody(registerSchema), async (req, res, next) => {
+router.post("/register", registrationLimiter, validateBody(registerSchema), async (req, res, next) => {
   try {
     const { name, email, password, department, level } = req.body as ReturnType<typeof registerSchema.parse>;
     const passwordHash = await bcrypt.hash(password, 12);
@@ -36,7 +55,7 @@ router.post("/register", validateBody(registerSchema), async (req, res, next) =>
   }
 });
 
-router.post("/login", validateBody(loginSchema), async (req, res, next) => {
+router.post("/login", loginLimiter, validateBody(loginSchema), async (req, res, next) => {
   try {
     const { email, password } = req.body as ReturnType<typeof loginSchema.parse>;
     const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
@@ -93,7 +112,7 @@ router.post("/change-password", authenticate, async (req, res, next) => {
   }
 });
 
-router.post("/forgot-password", async (req, res, next) => {
+router.post("/forgot-password", passwordResetLimiter, async (req, res, next) => {
   try {
     const emailResult = loginSchema.pick({ email: true }).safeParse({ email: req.body?.email });
     if (!emailResult.success) throw new HttpError(400, "Enter a valid email address.");
@@ -129,7 +148,7 @@ router.post("/forgot-password", async (req, res, next) => {
   }
 });
 
-router.post("/reset-password", async (req, res, next) => {
+router.post("/reset-password", passwordResetLimiter, async (req, res, next) => {
   try {
     const token = typeof req.body?.token === "string" ? req.body.token : "";
     const password = typeof req.body?.password === "string" ? req.body.password : "";
@@ -141,13 +160,20 @@ router.post("/reset-password", async (req, res, next) => {
     if (!record || record.expiresAt < new Date()) {
       throw new HttpError(400, "This password reset link has expired or was already used.");
     }
-    await prisma.$transaction([
-      prisma.user.update({
+    const passwordHash = await bcrypt.hash(password, 12);
+    await prisma.$transaction(async (transaction) => {
+      const consumed = await transaction.passwordResetToken.deleteMany({
+        where: { tokenHash, expiresAt: { gt: new Date() } }
+      });
+      if (consumed.count !== 1) {
+        throw new HttpError(400, "This password reset link has expired or was already used.");
+      }
+      await transaction.user.update({
         where: { id: record.userId },
-        data: { passwordHash: await bcrypt.hash(password, 12) }
-      }),
-      prisma.passwordResetToken.deleteMany({ where: { userId: record.userId } })
-    ]);
+        data: { passwordHash }
+      });
+      await transaction.passwordResetToken.deleteMany({ where: { userId: record.userId } });
+    });
     res.json({ message: "Password reset. You can now sign in." });
   } catch (error) {
     next(error);

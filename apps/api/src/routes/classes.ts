@@ -6,6 +6,7 @@ import { config } from "../lib/config.js";
 import { HttpError } from "../lib/errors.js";
 import { notifyUsers } from "../lib/notifications.js";
 import { prisma } from "../lib/prisma.js";
+import { courseLevelFilter } from "../lib/access.js";
 
 const router = Router();
 
@@ -96,7 +97,10 @@ router.post("/:id/start", authenticate, allowRoles(Role.LECTURER, Role.ADMIN), a
 router.post("/:id/join", authenticate, async (req, res, next) => {
   try {
     const session = await prisma.classSession.findFirst({
-      where: { id: req.params.id, isLive: true, course: { department: req.user!.department as Department } }
+      where: { id: req.params.id, isLive: true,       course: {
+        department: req.user!.department as Department,
+        ...courseLevelFilter(req.user!.role, req.user!.level)
+      } }
     });
     if (!session || !session.roomName || !session.roomUrl) throw new HttpError(404, "This class is not live.");
     const token = await dailyRequest("/meeting-tokens", {
@@ -133,7 +137,13 @@ router.patch("/:id/end", authenticate, allowRoles(Role.LECTURER, Role.ADMIN), as
 router.get("/:id/messages", authenticate, async (req, res, next) => {
   try {
     const session = await prisma.classSession.findFirst({
-      where: { id: req.params.id, course: { department: req.user!.department as Department } },
+      where: {
+        id: req.params.id,
+        course: {
+          department: req.user!.department as Department,
+          ...courseLevelFilter(req.user!.role, req.user!.level)
+        }
+      },
       select: { id: true }
     });
     if (!session) throw new HttpError(404, "Class session not found.");
@@ -154,7 +164,14 @@ router.post("/:id/messages", authenticate, async (req, res, next) => {
     const body = z.string().trim().min(1).max(1000).safeParse(req.body?.body);
     if (!body.success) throw new HttpError(400, "Chat messages must contain 1 to 1000 characters.");
     const session = await prisma.classSession.findFirst({
-      where: { id: req.params.id, isLive: true, course: { department: req.user!.department as Department } }
+      where: {
+        id: req.params.id,
+        isLive: true,
+        course: {
+          department: req.user!.department as Department,
+          ...courseLevelFilter(req.user!.role, req.user!.level)
+        }
+      }
     });
     if (!session) throw new HttpError(404, "This class is not live.");
     const message = await prisma.chatMessage.create({

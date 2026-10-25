@@ -7,7 +7,7 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "tsx --test src/services/quiz-scoring.test.ts src/lib/access.test.ts",
+    "test": "tsx --test src/services/quiz-scoring.test.ts src/lib/access.test.ts src/__tests__/app.test.ts",
     "start": "node dist/index.js",
     "start:container": "prisma migrate deploy && node dist/index.js",
     "db:generate": "prisma generate",

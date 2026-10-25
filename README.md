@@ -62,7 +62,7 @@ openapi.yaml              API testing and integration specification
    npm run dev
    ```
 
-5. Open [http://localhost:5173](http://localhost:5173). The API health endpoint is [http://localhost:4000/api/health](http://localhost:4000/api/health).
+5. Open [http://localhost:5173](http://localhost:5173). The API liveness check is [http://localhost:4000/api/health/live](http://localhost:4000/api/health/live); readiness at `/api/health/ready` also verifies PostgreSQL connectivity.
 
 The root `.env` is loaded by the API and Prisma CLI. The web development server proxies `/api` and `/socket.io` to the local API.
 
@@ -109,6 +109,8 @@ See [.env.example](./.env.example) for the full list.
 | `SEED_PASSWORD` | Development seed-account password; never use the default in a deployed environment |
 
 The app remains usable for non-provider features without Cloudinary, Daily.co, or SMTP credentials. A request that needs a missing provider returns a clear configuration error. Uploads, live room creation, and password-reset email delivery require their provider settings.
+
+The API exposes separate liveness and database-backed readiness checks. Authentication routes have additional per-process rate limits; deployments with multiple API replicas should configure a shared rate-limit store to enforce limits across instances.
 
 ## Application capabilities
 
