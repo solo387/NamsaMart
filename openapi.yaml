@@ -1,0 +1,359 @@
+openapi: 3.0.3
+info:
+  title: NamsaMart Health Sciences API
+  version: 1.0.0
+  description: API for Nursing, Midwifery, and Mental Health learning, assessments, classes, and communication.
+servers:
+  - url: http://localhost:4000/api
+security:
+  - bearerAuth: []
+paths:
+  /health:
+    get:
+      security: []
+      summary: Health check
+      responses:
+        "200":
+          description: API is available
+  /auth/register:
+    post:
+      security: []
+      summary: Register as a student
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password, department, level]
+              properties:
+                name: { type: string, minLength: 2, maxLength: 100 }
+                email: { type: string, format: email }
+                password: { type: string, minLength: 10 }
+                department: { $ref: "#/components/schemas/Department" }
+                level: { type: string, example: "Level 300" }
+      responses:
+        "201": { description: Student created with a bearer token }
+        "409": { description: Email already exists }
+  /auth/login:
+    post:
+      security: []
+      summary: Sign in
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        "200": { description: Authenticated user and bearer token }
+        "401": { description: Invalid credentials }
+  /auth/me:
+    get:
+      summary: Read the current profile
+      responses:
+        "200": { description: Current user profile }
+  /auth/profile:
+    patch:
+      summary: Update name, department, level, or avatar URL
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, department, level]
+              properties:
+                name: { type: string }
+                department: { $ref: "#/components/schemas/Department" }
+                level: { type: string }
+                avatarUrl: { type: string, format: uri, nullable: true }
+      responses:
+        "200": { description: Profile updated }
+  /auth/forgot-password:
+    post:
+      security: []
+      summary: Send a password reset email
+      responses:
+        "200": { description: Reset email request accepted }
+        "503": { description: SMTP is not configured }
+  /auth/reset-password:
+    post:
+      security: []
+      summary: Reset a password using an emailed token
+      responses:
+        "200": { description: Password reset }
+        "400": { description: Reset token invalid or expired }
+  /auth/change-password:
+    post:
+      summary: Change password for the current account
+      responses:
+        "200": { description: Password changed }
+        "400": { description: Current password incorrect or new password invalid }
+  /courses:
+    get:
+      summary: List courses available to the current department
+      parameters:
+        - { in: query, name: department, schema: { $ref: "#/components/schemas/Department" } }
+        - { in: query, name: level, schema: { type: string } }
+      responses:
+        "200": { description: Course catalogue }
+    post:
+      summary: Create a course (admin only)
+      responses:
+        "201": { description: Course created }
+  /materials/slides:
+    get:
+      summary: Browse approved learning materials
+      parameters:
+        - { in: query, name: courseId, schema: { type: string } }
+        - { in: query, name: level, schema: { type: string } }
+        - { in: query, name: search, schema: { type: string } }
+      responses:
+        "200": { description: Materials and current-user bookmark state }
+    post:
+      summary: Upload a lecture resource (lecturer or admin)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [title, courseId, file]
+              properties:
+                title: { type: string }
+                description: { type: string }
+                courseId: { type: string }
+                file: { type: string, format: binary }
+      responses:
+        "201": { description: Upload created; lecturer uploads await review }
+  /materials/slides/{id}/bookmark:
+    put:
+      summary: Toggle a slide bookmark
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string } }
+      responses:
+        "200": { description: Bookmark state }
+  /materials/slides/{id}/approval:
+    patch:
+      summary: Approve or reject a slide (admin only)
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string } }
+      responses:
+        "200": { description: Approval state updated }
+  /materials/past-questions:
+    get:
+      summary: Browse past exam questions
+      parameters:
+        - { in: query, name: courseId, schema: { type: string } }
+        - { in: query, name: year, schema: { type: integer } }
+        - { in: query, name: semester, schema: { type: string, enum: [FIRST, SECOND] } }
+      responses:
+        "200": { description: Past papers and current-user study state }
+    post:
+      summary: Upload a PDF past paper (lecturer or admin)
+      responses:
+        "201": { description: Past paper created }
+  /materials/past-questions/{id}/approval:
+    patch:
+      summary: Approve or reject a past paper (admin only)
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string } }
+      responses:
+        "200": { description: Approval state updated }
+  /materials/past-questions/{id}/studied:
+    put:
+      summary: Toggle a paper's studied state
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string } }
+      responses:
+        "200": { description: Study state }
+  /quizzes:
+    get:
+      summary: List published quizzes for a department
+      responses:
+        "200": { description: Quiz summaries and recent attempt }
+    post:
+      summary: Create a quiz (lecturer or admin)
+      responses:
+        "201": { description: Quiz created }
+  /quizzes/{id}:
+    get:
+      summary: Read quiz questions without answer keys
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string } }
+      responses:
+        "200": { description: Quiz details }
+  /quizzes/{id}/publish:
+    patch:
+      summary: Publish or unpublish a quiz (owner or admin)
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string } }
+      responses:
+        "200": { description: Publish state updated }
+  /quizzes/{id}/attempts:
+    post:
+      summary: Start a timed quiz attempt
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string } }
+      responses:
+        "201": { description: Attempt started }
+  /quizzes/{id}/attempts/{attemptId}/submit:
+    post:
+      summary: Submit answers for automatic scoring
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string } }
+        - { in: path, name: attemptId, required: true, schema: { type: string } }
+      responses:
+        "200": { description: Score and points earned }
+  /quizzes/{id}/attempts/{attemptId}/review:
+    get:
+      summary: Review a submitted attempt and answer key
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string } }
+        - { in: path, name: attemptId, required: true, schema: { type: string } }
+      responses:
+        "200": { description: Learner's answers and correct answers }
+  /quizzes/{id}/leaderboard:
+    get:
+      summary: Read course quiz leaderboard
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string } }
+      responses:
+        "200": { description: Best submitted score per learner }
+  /classes:
+    get:
+      summary: List department class sessions
+      responses:
+        "200": { description: Upcoming sessions and recordings }
+    post:
+      summary: Schedule a class (lecturer or admin)
+      responses:
+        "201": { description: Class scheduled }
+  /classes/{id}/start:
+    post:
+      summary: Create and start a private Daily.co class room
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string } }
+      responses:
+        "200": { description: Meeting URL and class state }
+        "503": { description: Daily.co is not configured }
+  /classes/{id}/join:
+    post:
+      summary: Create a short-lived participant token for a live class
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string } }
+      responses:
+        "200": { description: Meeting URL }
+  /classes/{id}/messages:
+    get:
+      summary: Read live class chat
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string } }
+      responses:
+        "200": { description: Recent messages }
+    post:
+      summary: Send a live class chat message
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string } }
+      responses:
+        "201": { description: Message created }
+  /classes/{id}/end:
+    patch:
+      summary: End a class and optionally attach its recording URL
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string } }
+      responses:
+        "200": { description: Class ended }
+  /news:
+    get:
+      summary: List department and college-wide announcements
+      responses:
+        "200": { description: News with comments and reactions }
+    post:
+      summary: Publish an announcement (lecturer or admin)
+      responses:
+        "201": { description: Announcement created }
+  /news/{id}/comments:
+    post:
+      summary: Comment on an announcement
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string } }
+      responses:
+        "201": { description: Comment created }
+  /news/{id}/reaction:
+    put:
+      summary: Toggle an announcement reaction
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string } }
+      responses:
+        "200": { description: Reaction state }
+  /notifications:
+    get:
+      summary: List current-user notifications and unread count
+      responses:
+        "200": { description: Notifications }
+  /notifications/{id}/read:
+    patch:
+      summary: Set read state for a notification
+      responses:
+        "200": { description: Read state updated }
+  /notifications/read-all:
+    patch:
+      summary: Mark all current-user notifications as read
+      responses:
+        "200": { description: Notifications marked read }
+  /notifications/preferences:
+    get:
+      summary: Read notification preferences
+      responses:
+        "200": { description: Current preferences }
+    patch:
+      summary: Update email or in-app notification preference
+      responses:
+        "200": { description: Preferences saved }
+  /media/avatar:
+    post:
+      summary: Upload a profile photo (JPG, PNG, or WebP)
+      responses:
+        "200": { description: Avatar saved }
+  /admin/users:
+    get:
+      summary: List accounts (admin only)
+      responses:
+        "200": { description: User directory }
+    post:
+      summary: Create an account with a role (admin only)
+      responses:
+        "201": { description: Account created }
+  /admin/users/{id}/role:
+    patch:
+      summary: Update a user's role (admin only)
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string } }
+      responses:
+        "200": { description: Role updated }
+  /admin/pending-slides:
+    get:
+      summary: List learning materials awaiting approval (admin only)
+      responses:
+        "200": { description: Pending slide list }
+  /admin/pending-past-questions:
+    get:
+      summary: List past papers awaiting approval (admin only)
+      responses:
+        "200": { description: Pending past-paper list }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Department:
+      type: string
+      enum: [NURSING, MIDWIFERY, MENTAL_HEALTH]

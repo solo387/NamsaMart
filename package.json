@@ -1,0 +1,32 @@
+{
+  "name": "namsamart",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "apps/api",
+    "apps/web",
+    "packages/shared"
+  ],
+  "scripts": {
+    "predev": "npm run db:generate && npm run build --workspace @namsamart/shared",
+    "dev": "concurrently -k -n api,web -c blue,green \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "npm --workspace @namsamart/api run dev",
+    "dev:web": "npm --workspace @namsamart/web run dev",
+    "prebuild": "npm run db:generate",
+    "build": "npm run build --workspace @namsamart/shared && npm run build --workspace @namsamart/api && npm run build --workspace @namsamart/web",
+    "pretypecheck": "npm run db:generate && npm run build --workspace @namsamart/shared",
+    "typecheck": "npm run typecheck --workspace @namsamart/shared && npm run typecheck --workspace @namsamart/api && npm run typecheck --workspace @namsamart/web",
+    "test": "npm test --workspace @namsamart/shared && npm test --workspace @namsamart/api",
+    "db:generate": "npm --workspace @namsamart/api run db:generate",
+    "db:migrate": "npm --workspace @namsamart/api run db:migrate",
+    "db:seed": "npm --workspace @namsamart/api run db:seed",
+    "db:studio": "npm --workspace @namsamart/api run db:studio"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.8.3"
+  },
+  "overrides": {
+    "deepmerge-ts": "^8.0.0"
+  }
+}

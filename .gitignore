@@ -33,3 +33,14 @@ google-services.json
 
 # Android Profiling
 *.hprof
+
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+apps/api/uploads/

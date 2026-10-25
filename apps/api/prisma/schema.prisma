@@ -1,0 +1,296 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+model StudyProgress {
+  userId         String
+  pastQuestionId String
+  studiedAt      DateTime     @default(now())
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pastQuestion   PastQuestion @relation(fields: [pastQuestionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, pastQuestionId])
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  STUDENT
+  LECTURER
+  ADMIN
+}
+
+enum Department {
+  NURSING
+  MIDWIFERY
+  MENTAL_HEALTH
+}
+
+enum Semester {
+  FIRST
+  SECOND
+}
+
+enum QuestionType {
+  MCQ
+  TRUE_FALSE
+  SHORT_ANSWER
+}
+
+enum NewsCategory {
+  ACADEMIC
+  GENERAL
+  EVENT
+  URGENT
+}
+
+enum NotificationType {
+  NEW_SLIDE
+  NEW_PAST_QUESTION
+  NEW_QUIZ
+  CLASS_STARTING
+  ANNOUNCEMENT
+  SYSTEM
+}
+
+model User {
+  id                     String                  @id @default(cuid())
+  name                   String
+  email                  String                  @unique
+  passwordHash           String
+  role                   Role                    @default(STUDENT)
+  department             Department
+  level                  String
+  avatarUrl              String?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  slides                 Slide[]
+  pastQuestions          PastQuestion[]
+  quizzes                Quiz[]
+  attempts               QuizAttempt[]
+  hostedClasses          ClassSession[]          @relation("ClassHost")
+  chatMessages           ChatMessage[]
+  news                   News[]
+  comments               NewsComment[]
+  reactions              NewsReaction[]
+  notifications          Notification[]
+  bookmarks              Bookmark[]
+  studyProgress          StudyProgress[]
+  enrollments            Enrollment[]
+  resetTokens            PasswordResetToken[]
+  notificationPreference NotificationPreference?
+}
+
+model Course {
+  id            String         @id @default(cuid())
+  code          String         @unique
+  title         String
+  department    Department
+  level         String
+  description   String?
+  createdAt     DateTime       @default(now())
+  slides        Slide[]
+  pastQuestions PastQuestion[]
+  quizzes       Quiz[]
+  classes       ClassSession[]
+  enrollments   Enrollment[]
+}
+
+model Enrollment {
+  userId     String
+  courseId   String
+  enrolledAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course     Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@id([userId, courseId])
+}
+
+model Slide {
+  id           String     @id @default(cuid())
+  title        String
+  description  String?
+  courseId     String
+  uploadedById String
+  fileUrl      String
+  publicId     String
+  type         String
+  mimeType     String
+  fileSize     Int
+  approved     Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  course       Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  uploadedBy   User       @relation(fields: [uploadedById], references: [id])
+  bookmarks    Bookmark[]
+
+  @@index([courseId, createdAt])
+}
+
+model PastQuestion {
+  id            String          @id @default(cuid())
+  courseId      String
+  uploadedById  String
+  year          Int
+  semester      Semester
+  fileUrl       String
+  publicId      String
+  approved      Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  course        Course          @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  uploadedBy    User            @relation(fields: [uploadedById], references: [id])
+  studyProgress StudyProgress[]
+
+  @@unique([courseId, year, semester])
+}
+
+model Quiz {
+  id              String        @id @default(cuid())
+  title           String
+  description     String?
+  courseId        String
+  createdById     String
+  durationMinutes Int
+  isPublished     Boolean       @default(false)
+  availableAt     DateTime?
+  createdAt       DateTime      @default(now())
+  course          Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  createdBy       User          @relation(fields: [createdById], references: [id])
+  questions       Question[]
+  attempts        QuizAttempt[]
+}
+
+model Question {
+  id            String       @id @default(cuid())
+  quizId        String
+  text          String
+  type          QuestionType
+  options       Json?
+  correctAnswer String
+  points        Int          @default(1)
+  order         Int
+  quiz          Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  @@unique([quizId, order])
+}
+
+model QuizAttempt {
+  id          String    @id @default(cuid())
+  quizId      String
+  userId      String
+  score       Float?
+  answers     Json?
+  startedAt   DateTime  @default(now())
+  submittedAt DateTime?
+  quiz        Quiz      @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([quizId, userId, submittedAt])
+}
+
+model ClassSession {
+  id           String        @id @default(cuid())
+  title        String
+  courseId     String
+  hostId       String
+  scheduledAt  DateTime
+  roomName     String?
+  roomUrl      String?
+  recordingUrl String?
+  isLive       Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+  course       Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  host         User          @relation("ClassHost", fields: [hostId], references: [id])
+  messages     ChatMessage[]
+}
+
+model ChatMessage {
+  id        String       @id @default(cuid())
+  classId   String
+  userId    String
+  body      String
+  createdAt DateTime     @default(now())
+  class     ClassSession @relation(fields: [classId], references: [id], onDelete: Cascade)
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([classId, createdAt])
+}
+
+model News {
+  id         String         @id @default(cuid())
+  title      String
+  body       String
+  imageUrl   String?
+  category   NewsCategory
+  department Department?
+  published  Boolean        @default(true)
+  authorId   String
+  createdAt  DateTime       @default(now())
+  author     User           @relation(fields: [authorId], references: [id])
+  comments   NewsComment[]
+  reactions  NewsReaction[]
+}
+
+model NewsComment {
+  id        String   @id @default(cuid())
+  newsId    String
+  userId    String
+  body      String
+  createdAt DateTime @default(now())
+  news      News     @relation(fields: [newsId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model NewsReaction {
+  newsId    String
+  userId    String
+  reaction  String
+  createdAt DateTime @default(now())
+  news      News     @relation(fields: [newsId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([newsId, userId])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  message   String
+  link      String?
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead, createdAt])
+}
+
+model Bookmark {
+  userId    String
+  slideId   String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  slide     Slide    @relation(fields: [slideId], references: [id], onDelete: Cascade)
+
+  @@id([userId, slideId])
+}
+
+model NotificationPreference {
+  userId       String  @id
+  emailEnabled Boolean @default(true)
+  pushEnabled  Boolean @default(true)
+  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+}
