@@ -8,6 +8,7 @@ declare global {
         role: Role;
         department: string;
         level: string;
+        cohortVerified: boolean;
         email: string;
         name: string;
       };

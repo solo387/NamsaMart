@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import { Role } from "@prisma/client";
+import { Department, Role } from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
 import { authenticate, allowRoles } from "../middleware/auth.js";
@@ -12,7 +12,7 @@ router.use(authenticate, allowRoles(Role.ADMIN));
 router.get("/users", async (_req, res, next) => {
   try {
     const users = await prisma.user.findMany({
-      select: { id: true, name: true, email: true, role: true, department: true, level: true, createdAt: true },
+      select: { id: true, name: true, email: true, role: true, department: true, level: true, cohortVerified: true, createdAt: true },
       orderBy: { createdAt: "desc" }
     });
     res.json({ users });
@@ -45,6 +45,34 @@ router.patch("/users/:id/role", async (req, res, next) => {
   }
 });
 
+router.patch("/users/:id/cohort", async (req, res, next) => {
+  try {
+    const parsed = z.object({
+      department: z.nativeEnum(Department).optional(),
+      level: z.string().trim().min(1).max(32).optional(),
+      verified: z.boolean().optional()
+    }).refine((value) => Object.keys(value).length > 0).safeParse(req.body);
+    if (!parsed.success) throw new HttpError(400, "Enter a valid department, level, or verification state.");
+    const existing = await prisma.user.findUnique({ where: { id: req.params.id } });
+    if (!existing || existing.role !== Role.STUDENT) throw new HttpError(404, "Student account not found.");
+
+    const cohortChanged = (parsed.data.department !== undefined && parsed.data.department !== existing.department)
+      || (parsed.data.level !== undefined && parsed.data.level !== existing.level);
+    const { verified, ...cohort } = parsed.data;
+    const user = await prisma.user.update({
+      where: { id: existing.id },
+      data: {
+        ...cohort,
+        cohortVerified: verified ?? (cohortChanged ? false : existing.cohortVerified)
+      },
+      select: { id: true, department: true, level: true, cohortVerified: true }
+    });
+    res.json({ user });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post("/users", async (req, res, next) => {
   try {
     const parsed = z.object({
@@ -61,9 +89,10 @@ router.post("/users", async (req, res, next) => {
         ...parsed.data,
         email: parsed.data.email.toLowerCase(),
         passwordHash: await bcrypt.hash(parsed.data.password, 12),
+        cohortVerified: true,
         notificationPreference: { create: {} }
       },
-      select: { id: true, name: true, email: true, role: true, department: true, level: true }
+      select: { id: true, name: true, email: true, role: true, department: true, level: true, cohortVerified: true }
     });
     res.status(201).json({ user });
   } catch (error) {

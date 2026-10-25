@@ -13,7 +13,7 @@ import { prisma } from "../lib/prisma.js";
 
 const router = Router();
 const safeUser = {
-  id: true, name: true, email: true, role: true, department: true, level: true, avatarUrl: true
+  id: true, name: true, email: true, role: true, department: true, level: true, cohortVerified: true, avatarUrl: true
 } as const;
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,

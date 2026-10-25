@@ -57,6 +57,7 @@ test("API exposes live and database readiness checks without leaking errors", as
     });
     assert.equal(malformed.status, 400);
     assert.deepEqual(await malformed.json(), { error: "Request body must contain valid JSON." });
+
   } finally {
     api.server.closeAllConnections();
     await new Promise<void>((resolve) => api.io.close(() => resolve()));

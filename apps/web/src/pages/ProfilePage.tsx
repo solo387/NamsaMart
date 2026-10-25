@@ -3,8 +3,7 @@ import { Bell, Camera, KeyRound, LogOut, Save, ShieldCheck, UserRound } from "lu
 import { toast } from "sonner";
 import { useAuth } from "../auth/AuthContext";
 import { api, getErrorMessage } from "../lib/api";
-import { departments } from "@namsamart/shared";
-import { Button, Card, Field, Input, PageHeading, Select } from "../components/ui";
+import { Button, Card, Field, Input, PageHeading } from "../components/ui";
 
 interface Preferences {
   emailEnabled: boolean;
@@ -30,9 +29,7 @@ export function ProfilePage() {
     setProfileBusy(true);
     try {
       await api.patch("/auth/profile", {
-        name: form.get("name"),
-        department: form.get("department"),
-        level: form.get("level")
+        name: form.get("name")
       });
       await refreshUser();
       toast.success("Your profile has been updated.");
@@ -92,11 +89,11 @@ export function ProfilePage() {
     }
   }
 
-  return <div><PageHeading eyebrow="Your account" title="Profile & settings" description="Keep your learner details up to date and choose how NamsaMart reaches you." />
+  return <div><PageHeading eyebrow="Your account" title="Profile & settings" description="Manage your account details and choose how NamsaMart reaches you." />
     <div className="grid gap-5 xl:grid-cols-[1fr_0.9fr]">
       <div className="space-y-5">
         <Card><div className="mb-5 flex items-center gap-2"><UserRound size={18} className="text-teal-700" /><h2 className="text-lg font-bold">Profile details</h2></div><div className="mb-5 flex items-center gap-4"><div className="relative">{user?.avatarUrl ? <img src={user.avatarUrl} alt={`${user.name} profile`} className="h-16 w-16 rounded-2xl object-cover" /> : <span className="grid h-16 w-16 place-items-center rounded-2xl bg-teal-100 text-lg font-bold text-teal-900 dark:bg-teal-950 dark:text-teal-100">{user?.name.split(/\s+/).map((part) => part[0]).slice(0, 2).join("")}</span>}<label className="absolute -bottom-2 -right-2 grid h-8 w-8 cursor-pointer place-items-center rounded-xl border-2 border-white bg-teal-700 text-white shadow-sm hover:bg-teal-800 dark:border-slate-900" aria-label="Upload profile photo"><Camera size={14} /><input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" aria-label="Choose a JPG, PNG, or WebP profile photo" onChange={(event) => void uploadAvatar(event.target.files?.[0])} /></label></div><div><p className="font-bold">{user?.name}</p><p className="mt-0.5 text-xs text-slate-500">{user?.email}</p><p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-teal-700 dark:text-teal-400">{user?.role}</p></div></div>
-          <form onSubmit={saveProfile} className="grid gap-4 sm:grid-cols-2"><Field label="Full name"><Input name="name" defaultValue={user?.name} required minLength={2} maxLength={100} /></Field><Field label="Email address"><Input value={user?.email ?? ""} disabled readOnly /></Field><Field label="Department"><Select name="department" defaultValue={user?.department}>{departments.map((department) => <option key={department} value={department}>{department.toLowerCase().replaceAll("_", " ").replace(/\b\w/g, (c) => c.toUpperCase())}</option>)}</Select></Field><Field label="Level / year"><Select name="level" defaultValue={user?.level}>{["Level 100", "Level 200", "Level 300", "Level 400", "Postgraduate"].map((level) => <option key={level}>{level}</option>)}</Select></Field><Button type="submit" disabled={profileBusy} className="sm:col-span-2 sm:justify-self-end"><Save size={16} />{profileBusy ? "Saving…" : "Save profile"}</Button></form>
+          <form onSubmit={saveProfile} className="grid gap-4 sm:grid-cols-2"><Field label="Full name"><Input name="name" defaultValue={user?.name} required minLength={2} maxLength={100} /></Field><Field label="Email address"><Input value={user?.email ?? ""} disabled readOnly /></Field><Field label="Department"><Input value={user?.department.toLowerCase().replaceAll("_", " ").replace(/\b\w/g, (c) => c.toUpperCase()) ?? ""} disabled readOnly /></Field><Field label="Level / year"><Input value={user?.level ?? ""} disabled readOnly /></Field><p className="text-xs text-slate-500 sm:col-span-2">Department and study level are verified by an administrator and cannot be changed from your profile.</p><Button type="submit" disabled={profileBusy} className="sm:col-span-2 sm:justify-self-end"><Save size={16} />{profileBusy ? "Saving…" : "Save profile"}</Button></form>
         </Card>
         <Card><div className="mb-5 flex items-center gap-2"><KeyRound size={18} className="text-teal-700" /><h2 className="text-lg font-bold">Change password</h2></div><form onSubmit={changePassword} className="grid gap-4"><Field label="Current password"><Input name="currentPassword" type="password" autoComplete="current-password" required /></Field><div className="grid gap-4 sm:grid-cols-2"><Field label="New password" hint="At least 10 characters."><Input name="newPassword" type="password" autoComplete="new-password" required minLength={10} maxLength={128} /></Field><Field label="Confirm new password"><Input name="confirmPassword" type="password" autoComplete="new-password" required minLength={10} maxLength={128} /></Field></div><Button type="submit" disabled={passwordBusy} className="sm:justify-self-end">{passwordBusy ? "Updating…" : "Update password"}</Button></form></Card>
       </div>

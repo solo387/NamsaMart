@@ -12,6 +12,8 @@ import { config } from "./lib/config.js";
 import { canAccessCourse } from "./lib/access.js";
 import { HttpError } from "./lib/errors.js";
 import { prisma } from "./lib/prisma.js";
+import { authenticate } from "./middleware/auth.js";
+import { requireVerifiedCohort } from "./middleware/cohort.js";
 import adminRoutes from "./routes/admin.js";
 import authRoutes from "./routes/auth.js";
 import classRoutes from "./routes/classes.js";
@@ -58,10 +60,10 @@ export function createApi({ checkDatabase = () => prisma.$queryRaw`SELECT 1` }: 
   });
 
   app.use("/api/auth", authRoutes);
-  app.use("/api/courses", courseRoutes);
-  app.use("/api/materials", materialRoutes);
-  app.use("/api/quizzes", quizRoutes);
-  app.use("/api/classes", classRoutes);
+  app.use("/api/courses", authenticate, requireVerifiedCohort, courseRoutes);
+  app.use("/api/materials", authenticate, requireVerifiedCohort, materialRoutes);
+  app.use("/api/quizzes", authenticate, requireVerifiedCohort, quizRoutes);
+  app.use("/api/classes", authenticate, requireVerifiedCohort, classRoutes);
   app.use("/api/news", newsRoutes);
   app.use("/api/notifications", notificationRoutes);
   app.use("/api/media", mediaRoutes);
@@ -115,7 +117,7 @@ export function createApi({ checkDatabase = () => prisma.$queryRaw`SELECT 1` }: 
         const [user, session] = await Promise.all([
           prisma.user.findUnique({
             where: { id: userId },
-            select: { role: true, department: true, level: true }
+            select: { role: true, department: true, level: true, cohortVerified: true }
           }),
           prisma.classSession.findUnique({
             where: { id: parsedClassId.data },
@@ -127,6 +129,7 @@ export function createApi({ checkDatabase = () => prisma.$queryRaw`SELECT 1` }: 
         ]);
         if (!user || !session || !session.isLive || !canAccessCourse(
           user.role,
+          user.cohortVerified,
           user.department,
           user.level,
           session.course.department,

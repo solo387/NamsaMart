@@ -29,7 +29,7 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
   try {
     const user = await prisma.user.findUnique({
       where: { id: payload.sub },
-      select: { id: true, role: true, department: true, level: true, email: true, name: true }
+      select: { id: true, role: true, department: true, level: true, cohortVerified: true, email: true, name: true }
     });
     if (!user) {
       res.status(401).json({ error: "Account not found." });

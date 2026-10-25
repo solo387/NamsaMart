@@ -2,13 +2,16 @@ import { Role } from "@prisma/client";
 
 export function canAccessCourse(
   role: Role,
+  cohortVerified: boolean,
   userDepartment: string,
   userLevel: string,
   courseDepartment: string,
   courseLevel: string
 ) {
   return role === Role.ADMIN
-    || (userDepartment === courseDepartment && (role !== Role.STUDENT || userLevel === courseLevel));
+    || (role !== Role.STUDENT || cohortVerified)
+      && userDepartment === courseDepartment
+      && (role !== Role.STUDENT || userLevel === courseLevel);
 }
 
 export function courseLevelFilter(role: Role, userLevel: string, requestedLevel?: string) {

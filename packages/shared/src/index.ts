@@ -18,10 +18,7 @@ export const loginSchema = z.object({
 });
 
 export const profileSchema = z.object({
-  name: z.string().trim().min(2).max(100),
-  department: z.enum(departments),
-  level: z.string().trim().min(1).max(32),
-  avatarUrl: z.string().url().nullable().optional()
+  name: z.string().trim().min(2).max(100)
 });
 
 export const courseSchema = z.object({

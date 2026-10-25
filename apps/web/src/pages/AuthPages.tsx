@@ -50,7 +50,7 @@ export function AuthPage({ mode }: { mode: "login" | "register" | "forgot" | "re
 
   const titles = {
     login: ["Welcome back", "Sign in to pick up where your clinical learning left off."],
-    register: ["Create your account", "Join your department's learning and collaboration space."],
+    register: ["Create your account", "Submit your student details for administrator verification to access your learning space."],
     forgot: ["Reset your password", "We'll email you a secure link to get back into your account."],
     reset: ["Choose a new password", "Use a strong password with at least 10 characters."]
   } as const;

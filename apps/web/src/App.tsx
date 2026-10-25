@@ -1,8 +1,9 @@
 import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
+import { ShieldCheck } from "lucide-react";
 import { useAuth } from "./auth/AuthContext";
 import { AppShell } from "./components/AppShell";
-import { Loading } from "./components/ui";
+import { Button, Card, Loading } from "./components/ui";
 
 const AuthPage = lazy(() => import("./pages/AuthPages").then(({ AuthPage }) => ({ default: AuthPage })));
 const AdminPage = lazy(() => import("./pages/AdminPage").then(({ AdminPage }) => ({ default: AdminPage })));
@@ -16,10 +17,13 @@ const QuizAttemptPage = lazy(() => import("./pages/QuizzesPage").then(({ QuizAtt
 const QuizzesPage = lazy(() => import("./pages/QuizzesPage").then(({ QuizzesPage }) => ({ default: QuizzesPage })));
 
 function Protected({ children, adminOnly = false }: { children: React.ReactNode; adminOnly?: boolean }) {
-  const { user, loading } = useAuth();
+  const { user, loading, signOut } = useAuth();
   if (loading) return <Loading label="Preparing your account…" />;
   if (!user) return <Navigate to="/login" replace />;
   if (adminOnly && user.role !== "ADMIN") return <Navigate to="/dashboard" replace />;
+  if (user.role === "STUDENT" && !user.cohortVerified) {
+    return <main className="grid min-h-screen place-items-center bg-slate-50 px-5 py-10 dark:bg-slate-950"><Card className="w-full max-w-lg text-center"><span className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200"><ShieldCheck size={26} /></span><p className="text-xs font-bold uppercase tracking-wider text-teal-700">Account verification</p><h1 className="mt-2 text-2xl font-bold">Your student details are being reviewed</h1><p className="mt-3 text-sm leading-relaxed text-slate-500">An administrator must verify your department and study level before you can access courses, learning materials, quizzes, or classes.</p><p className="mt-4 rounded-xl bg-slate-50 p-3 text-sm dark:bg-slate-800">{user.department.replaceAll("_", " ")} · {user.level}</p><Button variant="secondary" className="mt-5 w-full" onClick={signOut}>Sign out</Button></Card></main>;
+  }
   return children;
 }
 

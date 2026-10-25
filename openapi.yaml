@@ -46,7 +46,7 @@ paths:
                 department: { $ref: "#/components/schemas/Department" }
                 level: { type: string, example: "Level 300" }
       responses:
-        "201": { description: Student created with a bearer token }
+        "201": { description: Student created with a bearer token; cohort access awaits administrator verification }
         "409": { description: Email already exists }
   /auth/login:
     post:
@@ -350,6 +350,24 @@ paths:
         - { in: path, name: id, required: true, schema: { type: string } }
       responses:
         "200": { description: Role updated }
+  /admin/users/{id}/cohort:
+    patch:
+      summary: Update or verify a student's department and level (admin only)
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                department: { $ref: "#/components/schemas/Department" }
+                level: { type: string, maxLength: 32 }
+                verified: { type: boolean }
+      responses:
+        "200": { description: Student cohort updated }
+        "404": { description: Student account not found }
   /admin/pending-slides:
     get:
       summary: List learning materials awaiting approval (admin only)

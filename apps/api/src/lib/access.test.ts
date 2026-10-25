@@ -20,13 +20,17 @@ test("quiz answers become available after the quiz closes", () => {
 });
 
 test("students cannot join a class for another level", () => {
-  assert.equal(canAccessCourse(Role.STUDENT, "NURSING", "Level 200", "NURSING", "Level 300"), false);
+  assert.equal(canAccessCourse(Role.STUDENT, true, "NURSING", "Level 200", "NURSING", "Level 300"), false);
 });
 
 test("lecturers can access classes in their department across levels", () => {
-  assert.equal(canAccessCourse(Role.LECTURER, "NURSING", "Level 200", "NURSING", "Level 300"), true);
+  assert.equal(canAccessCourse(Role.LECTURER, false, "NURSING", "Level 200", "NURSING", "Level 300"), true);
 });
 
 test("administrators can access classes across departments", () => {
-  assert.equal(canAccessCourse(Role.ADMIN, "NURSING", "Level 200", "MIDWIFERY", "Level 300"), true);
+  assert.equal(canAccessCourse(Role.ADMIN, false, "NURSING", "Level 200", "MIDWIFERY", "Level 300"), true);
+});
+
+test("unverified students cannot access any cohort courses", () => {
+  assert.equal(canAccessCourse(Role.STUDENT, false, "NURSING", "Level 200", "NURSING", "Level 200"), false);
 });

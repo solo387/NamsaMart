@@ -8,6 +8,7 @@ export interface User {
   role: Role;
   department: Department;
   level: string;
+  cohortVerified: boolean;
   avatarUrl: string | null;
 }
 

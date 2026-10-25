@@ -110,7 +110,9 @@ See [.env.example](./.env.example) for the full list.
 
 The app remains usable for non-provider features without Cloudinary, Daily.co, or SMTP credentials. A request that needs a missing provider returns a clear configuration error. Uploads, live room creation, and password-reset email delivery require their provider settings.
 
-The API exposes separate liveness and database-backed readiness checks. Authentication routes have additional per-process rate limits; deployments with multiple API replicas should configure a shared rate-limit store to enforce limits across instances.
+The API exposes separate liveness and database-backed readiness checks. Authentication routes have additional per-process rate limits; deployments with multiple API replicas should configure a shared rate-limit store to enforce limits across instances. Newly registered student accounts require administrator verification of department and study level before course, learning-material, quiz, or class APIs grant access.
+
+The cohort-verification migration places existing and newly registered student accounts in pending review. Administrators can correct student department/level details and approve verification from Administration → People & access. Seed accounts and accounts created by an administrator are verified.
 
 ## Application capabilities
 

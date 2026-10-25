@@ -64,6 +64,7 @@ model User {
   role                   Role                    @default(STUDENT)
   department             Department
   level                  String
+  cohortVerified         Boolean                 @default(false)
   avatarUrl              String?
   createdAt              DateTime                @default(now())
   updatedAt              DateTime                @updatedAt

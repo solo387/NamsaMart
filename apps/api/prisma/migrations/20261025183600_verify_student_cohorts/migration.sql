@@ -1,0 +1,1 @@
+ALTER TABLE "User" ADD COLUMN "cohortVerified" BOOLEAN NOT NULL DEFAULT false;

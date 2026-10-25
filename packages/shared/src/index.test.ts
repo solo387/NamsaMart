@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { loginSchema, registerSchema } from "./index.js";
+import { loginSchema, profileSchema, registerSchema } from "./index.js";
 
 test("student registration validates the department and safe password length", () => {
   const registration = registerSchema.safeParse({
@@ -30,4 +30,11 @@ test("registration never accepts a caller-selected privileged role", () => {
 
 test("login rejects malformed email addresses", () => {
   assert.equal(loginSchema.safeParse({ email: "not-an-email", password: "secret" }).success, false);
+});
+
+test("profile edits cannot change department or study level", () => {
+  assert.deepEqual(
+    profileSchema.parse({ name: "Abena Owusu", department: "MIDWIFERY", level: "Level 400" }),
+    { name: "Abena Owusu" }
+  );
 });
