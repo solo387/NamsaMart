@@ -66,6 +66,33 @@ openapi.yaml              API testing and integration specification
 
 The root `.env` is loaded by the API and Prisma CLI. The web development server proxies `/api` and `/socket.io` to the local API.
 
+## Firebase Hosting (web client)
+
+Firebase Hosting can serve the React/Vite PWA. It does not host the Express API or Socket.IO server; deploy those separately to a Node.js service that supports long-lived HTTP/WebSocket connections, such as Cloud Run, and connect that service to the production PostgreSQL database.
+
+1. Deploy the API first and note its HTTPS origin (for example, `https://namsamart-api-xxxxx-uc.a.run.app`). Configure the API with `NODE_ENV=production`, `WEB_ORIGIN` set to the Firebase Hosting origin (initially `https://<firebase-project-id>.web.app`), `APP_URL` set to the same public app URL, the production database URL, a unique JWT secret, and any provider credentials used by the app. Add the final custom domain to `WEB_ORIGIN` and `APP_URL` if one is configured.
+2. Copy `apps/web/.env.production.example` to `apps/web/.env.production` and set:
+
+   ```dotenv
+   VITE_API_URL=https://your-api-service.run.app/api
+   VITE_SOCKET_URL=https://your-api-service.run.app
+   ```
+
+   `VITE_API_URL` is the API base URL including `/api`; `VITE_SOCKET_URL` is the API service origin. These values are public and are embedded in the frontend at build time; never put credentials or secrets in `VITE_*` variables. If `VITE_SOCKET_URL` is omitted, the app derives it from the API URL.
+3. Install and authenticate the Firebase CLI, then build and deploy from the repository root:
+
+   ```sh
+   npm install --global firebase-tools
+   firebase login
+   npm run build --workspace @namsamart/web
+   firebase deploy --only hosting --project <firebase-project-id>
+   ```
+
+   The checked-in [firebase.json](./firebase.json) publishes `apps/web/dist`, provides the SPA route fallback, avoids stale service-worker caching, and sets baseline browser security headers. The Firebase project ID and production `.env` file are intentionally not committed.
+4. Confirm the deployed app can sign in, load an authenticated API screen, and connect to notifications and class chat. In the browser network panel, API calls should go to the configured HTTPS API URL and Socket.IO should establish its connection to the configured API origin. A custom domain requires adding that exact HTTPS origin to the API `WEB_ORIGIN` setting.
+
+Firebase Hosting and the API are separate origins in this setup, so the API's Express and Socket.IO CORS allowlist must use the exact public Hosting origin. Do not point the frontend at `localhost` in a production build. API and Socket.IO endpoints are configured independently to support deployments where they use different service URLs.
+
 ### Seed accounts
 
 The seed creates five **development-only** accounts (one administrator, one lecturer, and students from all three departments). The password is the `SEED_PASSWORD` value in `.env` (default: `StudyNamsa!2026`).

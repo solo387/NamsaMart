@@ -8,6 +8,7 @@ import {
 import { toast } from "sonner";
 import { useAuth } from "../auth/AuthContext";
 import { api, departmentLabel } from "../lib/api";
+import { socketUrl } from "../lib/runtime-config";
 import type { NotificationItem } from "../lib/types";
 
 const mainLinks = [
@@ -41,7 +42,7 @@ export function AppShell() {
     void api.get<{ unreadCount: number }>("/notifications").then((result) => setUnread(result.data.unreadCount)).catch(() => undefined);
     const token = localStorage.getItem("namsamart-token");
     if (!token) return;
-    const socket = io(import.meta.env.VITE_SOCKET_URL || window.location.origin, { auth: { token } });
+    const socket = io(socketUrl, { auth: { token } });
     socket.on("notification:new", (notification: NotificationItem) => {
       setUnread((count) => count + 1);
       toast(notification.message, { action: notification.link ? { label: "Open", onClick: () => { window.location.href = notification.link!; } } : undefined });

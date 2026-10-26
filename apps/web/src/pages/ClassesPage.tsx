@@ -5,6 +5,7 @@ import { CalendarPlus, CalendarRange, Clock3, MessageCircle, Mic, Radio, Send, V
 import { toast } from "sonner";
 import { useAuth } from "../auth/AuthContext";
 import { api, getErrorMessage } from "../lib/api";
+import { socketUrl } from "../lib/runtime-config";
 import type { ClassSession, Course } from "../lib/types";
 import { Button, Card, EmptyState, ErrorNotice, Field, Input, Loading, PageHeading } from "../components/ui";
 
@@ -144,7 +145,7 @@ function ClassChat({ classId }: { classId: string }) {
     }).catch((cause) => { if (active) setError(getErrorMessage(cause, "Chat history could not load.")); });
     const token = localStorage.getItem("namsamart-token");
     if (!token) return;
-    const connection = io(import.meta.env.VITE_SOCKET_URL || window.location.origin, { auth: { token } });
+    const connection = io(socketUrl, { auth: { token } });
     connection.emit("class:join", classId, (result: { error?: string }) => { if (result.error) setError(result.error); });
     connection.on("class:message", (message: ChatMessage) => setMessages((items) => [...items, message]));
     setSocket(connection);
