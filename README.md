@@ -127,6 +127,79 @@ Set those three variables in the invoking environment before running the command
 
 The root `Dockerfile` provides an API target and a static Nginx PWA target. Nginx serves the SPA with history fallback and proxies API and Socket.IO traffic to the API container.
 
+### Deploy the API to Cloud Run
+
+The API image has a dedicated [Dockerfile.cloudrun](./Dockerfile.cloudrun); it builds only the shared package and API, listens on the `PORT` supplied by Cloud Run, and does not run database migrations every time an instance starts. The Cloud Run service and migration job both use the same release image. This guide uses Cloud Build and Artifact Registry, so Docker does not need to be installed on the deployer machine.
+
+Before deployment, choose a Google Cloud project and region, enable billing and the Cloud Run, Cloud Build, Artifact Registry, and Secret Manager APIs, create an Artifact Registry Docker repository, and provision a managed PostgreSQL database. Use a database URL that is reachable from Cloud Run and requires TLS; store it as the `database-url` Secret Manager secret. Do not put production database credentials in source control or the container image. Grant the Cloud Run service identity permission to access the secrets it uses.
+
+Set the exact Firebase Hosting origin as `WEB_ORIGIN` and `APP_URL` (for example, `https://your-firebase-project-id.web.app`; use the custom domain after it is connected). Store a random, unique, at-least-32-character `JWT_SECRET` in Secret Manager as `jwt-secret`. Set optional SMTP, Cloudinary, and Daily.co settings in the Cloud Run service configuration or Secret Manager as appropriate.
+
+From the repository root, substitute your own Google Cloud project ID, region, and Firebase Hosting origin. The example values below are intentionally placeholders:
+
+```sh
+PROJECT_ID="your-google-cloud-project-id"
+REGION="us-central1"
+WEB_ORIGIN="https://your-firebase-project-id.web.app"
+
+gcloud config set project "$PROJECT_ID"
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com secretmanager.googleapis.com
+gcloud artifacts repositories create namsamart --repository-format=docker --location="$REGION"
+
+gcloud builds submit --config cloudbuild.api.yaml --substitutions=_REGION="$REGION" .
+```
+
+Grant the Cloud Build service account `roles/artifactregistry.writer` on the repository. Create Secret Manager versions for `database-url` and `jwt-secret` using the production PostgreSQL URL and JWT secret. The database URL should require TLS and include `connection_limit=5` (for example, append `&connection_limit=5` if it already has query parameters). Grant the Cloud Run runtime identity `roles/secretmanager.secretAccessor` for these secrets. Then set `IMAGE` to the image URI printed by Cloud Build (`$REGION-docker.pkg.dev/$PROJECT_ID/namsamart/api:<build-id>`) and run the migration as a one-off Cloud Run Job before deploying the API:
+
+```sh
+IMAGE="$REGION-docker.pkg.dev/$PROJECT_ID/namsamart/api:BUILD_ID_FROM_CLOUD_BUILD"
+
+gcloud run jobs deploy namsamart-migrate \
+  --image "$IMAGE" \
+  --region "$REGION" \
+  --command npm \
+  --args run,db:migrate:deploy,--workspace,@namsamart/api \
+  --set-env-vars NODE_ENV=production \
+  --set-secrets DATABASE_URL=database-url:latest
+gcloud run jobs execute namsamart-migrate --region <region> --wait
+```
+
+Deploy the service with Socket.IO connection settings suitable for the current in-memory realtime implementation:
+
+```sh
+gcloud run deploy namsamart-api \
+  --image "$IMAGE" \
+  --region "$REGION" \
+  --allow-unauthenticated \
+  --port 8080 \
+  --timeout 3600 \
+  --session-affinity \
+  --max 1 \
+  --memory 1Gi \
+  --set-env-vars NODE_ENV=production,TRUST_PROXY=1,WEB_ORIGIN="$WEB_ORIGIN",APP_URL="$WEB_ORIGIN" \
+  --set-secrets DATABASE_URL=database-url:latest,JWT_SECRET=jwt-secret:latest
+```
+
+The service must be publicly invokable because browsers call the API directly; application data remains protected by the app's JWT authentication and role/cohort checks. `--max 1` avoids splitting the current in-memory Socket.IO rooms and per-process rate limits across Cloud Run instances. This is a deliberate initial capacity limit, not a high-availability or scale-out configuration. Before increasing it, add a shared Socket.IO adapter (for example Redis) and a shared rate-limit store. Cloud Run WebSockets are subject to the configured request timeout and can disconnect; clients must reconnect.
+
+Use the resulting Cloud Run HTTPS service URL to set `VITE_API_URL=<service-url>/api` and `VITE_SOCKET_URL=<service-url>` in `apps/web/.env.production`, then follow the Firebase Hosting deployment steps above. Set the API `WEB_ORIGIN` and `APP_URL` to the exact Hosting origin. Deploy future schema changes by executing the migration job against the new release image before routing production traffic to that image.
+
+Bootstrap the first administrator with a separate one-off Cloud Run Job. Store `BOOTSTRAP_ADMIN_NAME`, `BOOTSTRAP_ADMIN_EMAIL`, and `BOOTSTRAP_ADMIN_PASSWORD` in Secret Manager, grant the job identity access to those secrets, then deploy and execute the job:
+
+```sh
+gcloud run jobs deploy namsamart-admin-bootstrap \
+  --image "$IMAGE" \
+  --region "$REGION" \
+  --command npm \
+  --args run,admin:bootstrap,--workspace,@namsamart/api \
+  --set-secrets BOOTSTRAP_ADMIN_NAME=bootstrap-admin-name:latest,BOOTSTRAP_ADMIN_EMAIL=bootstrap-admin-email:latest,BOOTSTRAP_ADMIN_PASSWORD=bootstrap-admin-password:latest,DATABASE_URL=database-url:latest
+gcloud run jobs execute namsamart-admin-bootstrap --region "$REGION" --wait
+```
+
+The bootstrap command refuses to create an administrator if one already exists. Remove or disable the one-time bootstrap secrets after successful setup.
+
+The Cloud Run and database resources incur usage charges according to Google Cloud and database-provider pricing. Review the service, database, networking, storage, and backup costs and configure budgets before provisioning production resources.
+
 ## Environment variables
 
 See [.env.example](./.env.example) for the full list.
@@ -187,7 +260,7 @@ npm test
 
 - Configure a strong, unique `JWT_SECRET`, production PostgreSQL URL, HTTPS origin, initial-admin credentials, and production SMTP, Cloudinary, and Daily.co credentials in the deployment secret manager.
 - Build and run the API and web targets from the root Dockerfile, or deploy the Vite `apps/web/dist` output to a static host and the Express API separately. Set `VITE_API_URL` and `VITE_SOCKET_URL` at web build time when serving them on different origins.
-- Run `npm run db:migrate:deploy` as a release step (the Compose API target runs it at startup) and never run `db:migrate` against production.
+- Run `npm run db:migrate:deploy` as a release step (the Compose API command runs it at startup; Cloud Run uses a separate one-off job) and never run `db:migrate` against production.
 - Bootstrap the first administrator with `npm run admin:bootstrap` using one-time credentials supplied through the deployment environment. Do not run `npm run db:seed` in production; it is blocked when `NODE_ENV=production`.
 - Restrict network access to PostgreSQL. Terminate HTTPS at the hosting ingress/reverse proxy and set `WEB_ORIGIN` and `APP_URL` to the public HTTPS address.
 - Daily.co room creation and participant joining are integrated. Lecturers can attach a hosted recording URL when they end the class; recording capture/hosting must be enabled and configured with the chosen Daily.co plan.

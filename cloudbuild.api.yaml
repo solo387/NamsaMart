@@ -1,0 +1,13 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - Dockerfile.cloudrun
+      - -t
+      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/namsamart/api:${BUILD_ID}
+      - .
+images:
+  - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/namsamart/api:${BUILD_ID}
+substitutions:
+  _REGION: us-central1

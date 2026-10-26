@@ -29,6 +29,7 @@ services:
       APP_URL: ${APP_URL:-http://localhost:8080}
       DATABASE_URL: postgresql://${POSTGRES_USER:-namsamart}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-namsamart}?schema=public
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+    command: ["npm", "run", "start:container", "--workspace", "@namsamart/api"]
     depends_on:
       db:
         condition: service_healthy
