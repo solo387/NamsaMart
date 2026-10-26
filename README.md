@@ -84,11 +84,11 @@ Firebase Hosting can serve the React/Vite PWA. It does not host the Express API 
    ```sh
    npm install --global firebase-tools
    firebase login
-   npm run build --workspace @namsamart/web
+   npm run build:firebase --workspace @namsamart/web
    firebase deploy --only hosting --project <firebase-project-id>
    ```
 
-   The checked-in [firebase.json](./firebase.json) publishes `apps/web/dist`, provides the SPA route fallback, avoids stale service-worker caching, and sets baseline browser security headers. The Firebase project ID and production `.env` file are intentionally not committed.
+   The Firebase-specific build command requires a real HTTPS API URL and rejects missing, placeholder, localhost, or non-HTTPS configuration before creating deployable assets. The Socket.IO URL is optional when it shares the API origin, and is validated when supplied. The checked-in [firebase.json](./firebase.json) publishes `apps/web/dist`, provides the SPA route fallback, avoids stale service-worker caching, and sets baseline browser security headers. The Firebase project ID and production `.env` file are intentionally not committed.
 4. Confirm the deployed app can sign in, load an authenticated API screen, and connect to notifications and class chat. In the browser network panel, API calls should go to the configured HTTPS API URL and Socket.IO should establish its connection to the configured API origin. A custom domain requires adding that exact HTTPS origin to the API `WEB_ORIGIN` setting.
 
 Firebase Hosting and the API are separate origins in this setup, so the API's Express and Socket.IO CORS allowlist must use the exact public Hosting origin. Do not point the frontend at `localhost` in a production build. API and Socket.IO endpoints are configured independently to support deployments where they use different service URLs.
