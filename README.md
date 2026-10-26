@@ -164,7 +164,16 @@ gcloud run jobs deploy namsamart-migrate \
 gcloud run jobs execute namsamart-migrate --region <region> --wait
 ```
 
-Create Secret Manager versions for the Cloudinary cloud name, API key, and API secret if lecturers will upload materials, past papers, or avatars. The application returns a clear configuration error for uploads if these are absent. Map the secret values to `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET` on the API service. Enable PDF delivery in the Cloudinary product security settings so uploaded PDFs can be embedded for preview. PDFs are uploaded as Cloudinary image assets for browser rendering; PowerPoint and Word files remain downloadable raw assets. Uploads are limited to 25 MB to stay within Cloud Run's HTTP request size limit while the API buffers each file for provider upload. SMTP and Daily.co secrets can be mapped the same way when those capabilities are enabled.
+Create Secret Manager versions for the Cloudinary cloud name, API key, and API secret if lecturers will upload materials, past papers, or avatars. The application returns a clear configuration error for uploads if these are absent. Map the secret values to `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET` on the API service. Enable PDF delivery in the Cloudinary product security settings so uploaded PDFs can be embedded for preview. PDFs are uploaded as Cloudinary image assets for browser rendering; PowerPoint and Word files remain downloadable raw assets. Uploads are limited to 25 MB to stay within Cloud Run's HTTP request size limit while the API buffers each file for provider upload.
+
+For live classes, create a Daily.co account and copy its API key from the Daily developer dashboard. Store it in Secret Manager as `daily-api-key`, and grant the Cloud Run runtime service account `roles/secretmanager.secretAccessor` on that secret. Map it to `DAILY_API_KEY` on the API service as shown below. Keep this key server-side; do not put it in a `VITE_*` variable or the frontend build. Without it, classes can be scheduled, but starting a room and joining a live class return a configuration error.
+
+```sh
+gcloud secrets create daily-api-key --replication-policy=automatic
+printf '%s' "$DAILY_API_KEY" | gcloud secrets versions add daily-api-key --data-file=-
+```
+
+The API uses Daily.co to create private rooms and short-lived lecturer/student meeting tokens. Recording capture is not started or saved automatically: enable recording for the Daily.co account/plan, then provide a hosted recording URL when ending the class.
 
 Deploy the service with Socket.IO connection settings suitable for the current in-memory realtime implementation:
 
@@ -179,12 +188,12 @@ gcloud run deploy namsamart-api \
   --max 1 \
   --memory 1Gi \
   --set-env-vars NODE_ENV=production,TRUST_PROXY=1,WEB_ORIGIN="$WEB_ORIGIN",APP_URL="$WEB_ORIGIN" \
-  --set-secrets DATABASE_URL=database-url:latest,JWT_SECRET=jwt-secret:latest,CLOUDINARY_CLOUD_NAME=cloudinary-cloud-name:latest,CLOUDINARY_API_KEY=cloudinary-api-key:latest,CLOUDINARY_API_SECRET=cloudinary-api-secret:latest
+  --set-secrets DATABASE_URL=database-url:latest,JWT_SECRET=jwt-secret:latest,CLOUDINARY_CLOUD_NAME=cloudinary-cloud-name:latest,CLOUDINARY_API_KEY=cloudinary-api-key:latest,CLOUDINARY_API_SECRET=cloudinary-api-secret:latest,DAILY_API_KEY=daily-api-key:latest
 ```
 
-If Cloudinary is not configured yet, omit its three secret mappings for the service to start, but lecturer uploads and avatar uploads will remain unavailable until the secrets are added and a new Cloud Run revision is deployed.
+If Cloudinary or Daily.co is not configured yet, omit the corresponding secret mappings for the service to start. Material/avatar uploads or live-room creation/joining will remain unavailable, respectively, until the secrets are added and a new Cloud Run revision is deployed.
 
-The service must be publicly invokable because browsers call the API directly; application data remains protected by the app's JWT authentication and role/cohort checks. `--max 1` avoids splitting the current in-memory Socket.IO rooms and per-process rate limits across Cloud Run instances. This is a deliberate initial capacity limit, not a high-availability or scale-out configuration. Before increasing it, add a shared Socket.IO adapter (for example Redis) and a shared rate-limit store. Cloud Run WebSockets are subject to the configured request timeout and can disconnect; clients must reconnect.
+The service must be publicly invokable because browsers call the API directly; application data remains protected by the app's JWT authentication and role/cohort checks. `--session-affinity` helps keep Socket.IO connections on one instance, and `--max 1` avoids splitting the current in-memory Socket.IO rooms and per-process rate limits across Cloud Run instances. This is a deliberate initial capacity limit, not a high-availability or scale-out configuration. Before increasing it, add a shared Socket.IO adapter (for example Redis) and a shared rate-limit store. Cloud Run WebSockets are subject to the configured request timeout and can disconnect; clients must reconnect.
 
 Use the resulting Cloud Run HTTPS service URL to set `VITE_API_URL=<service-url>/api` and `VITE_SOCKET_URL=<service-url>` in `apps/web/.env.production`, then follow the Firebase Hosting deployment steps above. Set the API `WEB_ORIGIN` and `APP_URL` to the exact Hosting origin. Deploy future schema changes by executing the migration job against the new release image before routing production traffic to that image.
 
