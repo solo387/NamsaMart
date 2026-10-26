@@ -19,10 +19,11 @@ const acceptedTypes = new Set([
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "video/mp4"
 ]);
+const maxUploadSizeBytes = 25 * 1024 * 1024;
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 100 * 1024 * 1024, files: 1 },
+  limits: { fileSize: maxUploadSizeBytes, files: 1 },
   fileFilter: (_req, file, callback) => {
     if (!acceptedTypes.has(file.mimetype)) {
       callback(new HttpError(400, "Upload a PDF, PowerPoint, Word document, or MP4 video."));

@@ -15,7 +15,11 @@ export function uploadFile(file: Express.Multer.File, folder: string) {
     const stream = cloudinary.uploader.upload_stream(
       {
         folder: `namsamart/${folder}`,
-        resource_type: file.mimetype.startsWith("video/") ? "video" : file.mimetype.startsWith("image/") ? "image" : "raw"
+        resource_type: file.mimetype === "application/pdf" || file.mimetype.startsWith("image/")
+          ? "image"
+          : file.mimetype.startsWith("video/")
+            ? "video"
+            : "raw"
       },
       (error, result) => {
         if (error) {

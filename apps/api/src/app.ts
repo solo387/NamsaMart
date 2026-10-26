@@ -156,7 +156,7 @@ export function createApi({ checkDatabase = () => prisma.$queryRaw`SELECT 1` }: 
     if (error instanceof multer.MulterError) {
       const tooLarge = error.code === "LIMIT_FILE_SIZE";
       res.status(tooLarge ? 413 : 400).json({
-        error: tooLarge ? "File exceeds the 100 MB upload limit." : "File upload could not be processed."
+        error: tooLarge ? "File exceeds the 25 MB upload limit." : "File upload could not be processed."
       });
       return;
     }

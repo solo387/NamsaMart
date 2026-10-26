@@ -164,6 +164,8 @@ gcloud run jobs deploy namsamart-migrate \
 gcloud run jobs execute namsamart-migrate --region <region> --wait
 ```
 
+Create Secret Manager versions for the Cloudinary cloud name, API key, and API secret if lecturers will upload materials, past papers, or avatars. The application returns a clear configuration error for uploads if these are absent. Map the secret values to `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET` on the API service. Enable PDF delivery in the Cloudinary product security settings so uploaded PDFs can be embedded for preview. PDFs are uploaded as Cloudinary image assets for browser rendering; PowerPoint and Word files remain downloadable raw assets. Uploads are limited to 25 MB to stay within Cloud Run's HTTP request size limit while the API buffers each file for provider upload. SMTP and Daily.co secrets can be mapped the same way when those capabilities are enabled.
+
 Deploy the service with Socket.IO connection settings suitable for the current in-memory realtime implementation:
 
 ```sh
@@ -177,8 +179,10 @@ gcloud run deploy namsamart-api \
   --max 1 \
   --memory 1Gi \
   --set-env-vars NODE_ENV=production,TRUST_PROXY=1,WEB_ORIGIN="$WEB_ORIGIN",APP_URL="$WEB_ORIGIN" \
-  --set-secrets DATABASE_URL=database-url:latest,JWT_SECRET=jwt-secret:latest
+  --set-secrets DATABASE_URL=database-url:latest,JWT_SECRET=jwt-secret:latest,CLOUDINARY_CLOUD_NAME=cloudinary-cloud-name:latest,CLOUDINARY_API_KEY=cloudinary-api-key:latest,CLOUDINARY_API_SECRET=cloudinary-api-secret:latest
 ```
+
+If Cloudinary is not configured yet, omit its three secret mappings for the service to start, but lecturer uploads and avatar uploads will remain unavailable until the secrets are added and a new Cloud Run revision is deployed.
 
 The service must be publicly invokable because browsers call the API directly; application data remains protected by the app's JWT authentication and role/cohort checks. `--max 1` avoids splitting the current in-memory Socket.IO rooms and per-process rate limits across Cloud Run instances. This is a deliberate initial capacity limit, not a high-availability or scale-out configuration. Before increasing it, add a shared Socket.IO adapter (for example Redis) and a shared rate-limit store. Cloud Run WebSockets are subject to the configured request timeout and can disconnect; clients must reconnect.
 
@@ -226,8 +230,8 @@ The cohort-verification migration places existing and newly registered student a
 
 - Student registration and sign-in, role-aware access, profile editing, password change, and SMTP password reset
 - Student, lecturer, and admin roles; department and level-aware course access; admin user/course management
-- Slides and study-resource search, course/level filtering, bookmarking, uploads, and admin approval
-- Past exam-paper upload and filtering, admin approval, and per-student studied-state tracking
+- Slides and study-resource search, course/level filtering, bookmarking, uploads up to 25 MB, PDF/MP4 in-app preview, and admin approval
+- Past exam-paper upload and filtering, in-app PDF preview, admin approval, and per-student studied-state tracking
 - Lecturer quiz authoring (multiple choice, true/false, and short answer), private answer keys, timed attempts, scoring, answer review after a lecturer closes the quiz, attempt history, and leaderboard
 - Class scheduling, private Daily.co room tokens, embedded live class access, persistent Socket.IO chat, and shared recording links
 - Department-filtered announcements, comments, reactions, and live in-app notification badges
