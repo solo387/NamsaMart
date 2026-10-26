@@ -82,14 +82,21 @@ Change or remove seeded credentials before exposing any environment beyond local
 
 ### Docker Compose
 
-For a containerized application, copy `.env.example` to `.env`, replace the example secrets, then run:
+For a containerized application, copy `.env.example` to `.env`, replace the example secrets, set `NODE_ENV=production`, set `WEB_ORIGIN` and `APP_URL` to the public HTTPS URL, and use a unique `JWT_SECRET` and strong `POSTGRES_PASSWORD`. Keep database passwords URL-safe (letters and numbers) because Compose uses the password in the database URL. Then run:
 
 ```sh
 docker compose up --build -d
-docker compose exec api npm run db:seed
 ```
 
-Open [http://localhost:8080](http://localhost:8080). Compose applies checked-in Prisma migrations before the API starts. PostgreSQL data persists in the `postgres_data` volume. The API is also available on port 4000. `docker compose down` stops services; `docker compose down -v` also deletes local database data.
+Compose applies checked-in Prisma migrations before the API starts. Only the web service is published; the API stays on the internal Compose network behind Nginx. Put a TLS-enabled ingress or reverse proxy in front of port 8080 and forward the original client address. PostgreSQL data persists in the `postgres_data` volume. `docker compose down` stops services; `docker compose down -v` also deletes local database data.
+
+Create the first administrator once, using secrets supplied by your deployment secret manager rather than committing them to `.env` or shell history:
+
+```sh
+docker compose exec -e BOOTSTRAP_ADMIN_NAME -e BOOTSTRAP_ADMIN_EMAIL -e BOOTSTRAP_ADMIN_PASSWORD api npm run admin:bootstrap
+```
+
+Set those three variables in the invoking environment before running the command. The bootstrap command refuses to create another administrator if one already exists. Do not run the development seed in production; it is disabled when `NODE_ENV=production`.
 
 The root `Dockerfile` provides an API target and a static Nginx PWA target. Nginx serves the SPA with history fallback and proxies API and Socket.IO traffic to the API container.
 
@@ -102,6 +109,7 @@ See [.env.example](./.env.example) for the full list.
 | `DATABASE_URL` | PostgreSQL connection used by local development and Prisma |
 | `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | Compose database configuration |
 | `JWT_SECRET`, `JWT_EXPIRES_IN` | Signing key and lifetime for access tokens |
+| `TRUST_PROXY` | Number of trusted reverse-proxy hops in front of the API (Compose sets one for Nginx) |
 | `WEB_ORIGIN`, `APP_URL` | Allowed browser origin and reset-link URL |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | Password-reset mail delivery |
 | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Secure media and profile image uploads |
@@ -110,7 +118,7 @@ See [.env.example](./.env.example) for the full list.
 
 The app remains usable for non-provider features without Cloudinary, Daily.co, or SMTP credentials. A request that needs a missing provider returns a clear configuration error. Uploads, live room creation, and password-reset email delivery require their provider settings.
 
-The API exposes separate liveness and database-backed readiness checks. Authentication routes have additional per-process rate limits; deployments with multiple API replicas should configure a shared rate-limit store to enforce limits across instances. Newly registered student accounts require administrator verification of department and study level before course, learning-material, quiz, or class APIs grant access.
+The API exposes separate liveness and database-backed readiness checks. Login, registration, and password-reset routes have per-process rate limits; deployments with multiple API replicas should configure a shared rate-limit store to enforce limits across instances. Set `TRUST_PROXY` to the exact number of trusted proxy hops so rate limits use the client address without trusting arbitrary forwarded headers. Production requires HTTPS `WEB_ORIGIN` and `APP_URL`. Newly registered student accounts require administrator verification of department and study level before course, learning-material, quiz, or class APIs grant access.
 
 The cohort-verification migration places existing and newly registered student accounts in pending review. Administrators can correct student department/level details and approve verification from Administration → People & access. Seed accounts and accounts created by an administrator are verified.
 
@@ -150,9 +158,10 @@ npm test
 
 ## Deployment notes
 
-- Configure a strong, unique `JWT_SECRET`, production PostgreSQL URL, HTTPS origin, and production SMTP, Cloudinary, and Daily.co credentials in the deployment secret manager.
+- Configure a strong, unique `JWT_SECRET`, production PostgreSQL URL, HTTPS origin, initial-admin credentials, and production SMTP, Cloudinary, and Daily.co credentials in the deployment secret manager.
 - Build and run the API and web targets from the root Dockerfile, or deploy the Vite `apps/web/dist` output to a static host and the Express API separately. Set `VITE_API_URL` and `VITE_SOCKET_URL` at web build time when serving them on different origins.
 - Run `npm run db:migrate:deploy` as a release step (the Compose API target runs it at startup) and never run `db:migrate` against production.
+- Bootstrap the first administrator with `npm run admin:bootstrap` using one-time credentials supplied through the deployment environment. Do not run `npm run db:seed` in production; it is blocked when `NODE_ENV=production`.
 - Restrict network access to PostgreSQL. Terminate HTTPS at the hosting ingress/reverse proxy and set `WEB_ORIGIN` and `APP_URL` to the public HTTPS address.
 - Daily.co room creation and participant joining are integrated. Lecturers can attach a hosted recording URL when they end the class; recording capture/hosting must be enabled and configured with the chosen Daily.co plan.
 - Seed users are for local development only. Do not run the seed against a production database.

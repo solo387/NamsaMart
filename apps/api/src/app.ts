@@ -38,15 +38,10 @@ export function createApi({ checkDatabase = () => prisma.$queryRaw`SELECT 1` }: 
     io.to(`user:${userId}`).emit("notification:new", notification)
   );
   app.disable("x-powered-by");
+  app.set("trust proxy", config.TRUST_PROXY);
   app.use(helmet());
   app.use(cors({ origin: config.WEB_ORIGIN }));
   app.use(express.json({ limit: "1mb" }));
-  app.use("/api/auth", rateLimit({
-    windowMs: 15 * 60 * 1000,
-    limit: 30,
-    standardHeaders: true,
-    legacyHeaders: false
-  }));
 
   app.get("/api/health", (_req, res) => res.json({ status: "ok", timestamp: new Date().toISOString() }));
   app.get("/api/health/live", (_req, res) => res.json({ status: "ok" }));

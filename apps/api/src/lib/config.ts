@@ -8,6 +8,7 @@ dotenv.config();
 export const configSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(4000),
+  TRUST_PROXY: z.coerce.number().int().min(0).max(5).default(0),
   WEB_ORIGIN: z.string().url().default("http://localhost:5173"),
   DATABASE_URL: z.string().min(1),
   JWT_SECRET: z.string().min(32).refine((secret) => !/\s/.test(secret), "JWT_SECRET must not contain whitespace."),
@@ -30,6 +31,17 @@ export const configSchema = z.object({
       path: ["JWT_SECRET"],
       message: "Replace the example JWT_SECRET with a unique production secret."
     });
+  }
+  if (values.NODE_ENV === "production") {
+    for (const key of ["WEB_ORIGIN", "APP_URL"] as const) {
+      if (new URL(values[key]).protocol !== "https:") {
+        context.addIssue({
+          code: "custom",
+          path: [key],
+          message: `${key} must use HTTPS in production.`
+        });
+      }
+    }
   }
 });
 

@@ -17,6 +17,13 @@ test("API exposes live and database readiness checks without leaking errors", as
     NODE_ENV: "production",
     JWT_SECRET: "replace-with-a-random-secret-that-is-long-enough"
   }));
+  assert.throws(() => configSchema.parse({
+    ...process.env,
+    NODE_ENV: "production",
+    JWT_SECRET: "a-unique-production-secret-that-is-long-enough",
+    WEB_ORIGIN: "http://namsamart.example",
+    APP_URL: "https://namsamart.example"
+  }));
   assert.throws(() => configSchema.parse({ ...process.env, JWT_EXPIRES_IN: "forever" }));
   let databaseReady = true;
   const api = createApi({
@@ -57,6 +64,13 @@ test("API exposes live and database readiness checks without leaking errors", as
     });
     assert.equal(malformed.status, 400);
     assert.deepEqual(await malformed.json(), { error: "Request body must contain valid JSON." });
+
+    for (let attempt = 0; attempt < 35; attempt += 1) {
+      const profile = await fetch(`${baseUrl}/api/auth/me`, {
+        headers: { connection: "close" }
+      });
+      assert.equal(profile.status, 401);
+    }
 
   } finally {
     api.server.closeAllConnections();

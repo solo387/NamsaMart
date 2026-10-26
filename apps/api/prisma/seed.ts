@@ -28,6 +28,10 @@ async function seedUser(email: string, name: string, role: Role, department: Dep
 }
 
 async function main() {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("Development seed data is disabled in production.");
+  }
+
   const [admin, lecturer, nursingStudent, midwiferyStudent, mentalHealthStudent] = await Promise.all([
     seedUser("admin@namsamart.edu", "Ama Ofori", Role.ADMIN, Department.NURSING, "Level 300"),
     seedUser("lecturer@namsamart.edu", "Dr. Kofi Mensah", Role.LECTURER, Department.NURSING, "Level 300"),
