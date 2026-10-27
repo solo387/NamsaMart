@@ -2,11 +2,11 @@ import { Department, NotificationType, Role } from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
 import { authenticate, allowRoles } from "../middleware/auth.js";
-import { config } from "../lib/config.js";
 import { HttpError } from "../lib/errors.js";
 import { notifyUsers } from "../lib/notifications.js";
 import { prisma } from "../lib/prisma.js";
 import { courseLevelFilter } from "../lib/access.js";
+import { getIntegrationConfig } from "../services/provider-settings.js";
 
 const router = Router();
 
@@ -28,10 +28,10 @@ interface DailyResponse {
 }
 
 async function dailyRequest(path: string, method: "GET" | "POST", body?: object): Promise<DailyResponse> {
-  if (!config.DAILY_API_KEY) throw new HttpError(503, "Live classes are not configured. Contact your administrator.");
+  const credentials = await getIntegrationConfig("daily");
   const response = await fetch(`https://api.daily.co/v1${path}`, {
     method,
-    headers: { Authorization: `Bearer ${config.DAILY_API_KEY}`, "Content-Type": "application/json" },
+    headers: { Authorization: `Bearer ${credentials.apiKey}`, "Content-Type": "application/json" },
     ...(body ? { body: JSON.stringify(body) } : {})
   });
   const result = await response.json() as DailyResponse;

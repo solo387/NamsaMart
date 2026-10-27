@@ -10,6 +10,7 @@ import { config } from "../lib/config.js";
 import { HttpError } from "../lib/errors.js";
 import { createAccessToken } from "../lib/jwt.js";
 import { prisma } from "../lib/prisma.js";
+import { getIntegrationConfig } from "../services/provider-settings.js";
 
 const router = Router();
 const safeUser = {
@@ -116,9 +117,7 @@ router.post("/forgot-password", passwordResetLimiter, async (req, res, next) => 
   try {
     const emailResult = loginSchema.pick({ email: true }).safeParse({ email: req.body?.email });
     if (!emailResult.success) throw new HttpError(400, "Enter a valid email address.");
-    if (!config.SMTP_HOST || !config.SMTP_USER || !config.SMTP_PASSWORD) {
-      throw new HttpError(503, "Password reset email is not configured. Contact your administrator.");
-    }
+    const smtp = await getIntegrationConfig("smtp");
     const user = await prisma.user.findUnique({ where: { email: emailResult.data.email.toLowerCase() } });
     if (user) {
       const token = randomBytes(32).toString("hex");
@@ -130,13 +129,13 @@ router.post("/forgot-password", passwordResetLimiter, async (req, res, next) => 
         }
       });
       const transport = nodemailer.createTransport({
-        host: config.SMTP_HOST,
-        port: config.SMTP_PORT,
-        secure: config.SMTP_SECURE === "true",
-        auth: { user: config.SMTP_USER, pass: config.SMTP_PASSWORD }
+        host: smtp.host,
+        port: smtp.port,
+        secure: smtp.secure,
+        auth: { user: smtp.user, pass: smtp.password }
       });
       await transport.sendMail({
-        from: config.SMTP_FROM,
+        from: smtp.from,
         to: user.email,
         subject: "Reset your NamsaMart password",
         text: `Use this link within 30 minutes to set a new password: ${config.APP_URL}/reset-password?token=${token}`

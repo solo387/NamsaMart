@@ -295,3 +295,9 @@ model PasswordResetToken {
 
   @@index([expiresAt])
 }
+
+model IntegrationSecret {
+  provider   String   @id
+  ciphertext String
+  updatedAt  DateTime @updatedAt
+}

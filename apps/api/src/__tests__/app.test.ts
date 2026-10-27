@@ -25,6 +25,8 @@ test("API exposes live and database readiness checks without leaking errors", as
     APP_URL: "https://namsamart.example"
   }));
   assert.throws(() => configSchema.parse({ ...process.env, JWT_EXPIRES_IN: "forever" }));
+  assert.equal(configSchema.parse({ ...process.env, INTEGRATION_SECRETS_KEY: "" }).INTEGRATION_SECRETS_KEY, undefined);
+  assert.throws(() => configSchema.parse({ ...process.env, INTEGRATION_SECRETS_KEY: "not-a-32-byte-hex-key" }));
   let databaseReady = true;
   const api = createApi({
     checkDatabase: async () => {
@@ -64,6 +66,20 @@ test("API exposes live and database readiness checks without leaking errors", as
     });
     assert.equal(malformed.status, 400);
     assert.deepEqual(await malformed.json(), { error: "Request body must contain valid JSON." });
+
+    for (const [path, method] of [
+      ["/api/admin/integrations", "GET"],
+      ["/api/admin/integrations/daily", "PUT"],
+      ["/api/admin/integrations/daily/test", "POST"],
+      ["/api/admin/integrations/daily", "DELETE"]
+    ] as const) {
+      const protectedResponse = await fetch(`${baseUrl}${path}`, {
+        method,
+        headers: { connection: "close", "Content-Type": "application/json" },
+        body: method === "GET" || method === "DELETE" ? undefined : "{}"
+      });
+      assert.equal(protectedResponse.status, 401, `${method} ${path} must require authentication`);
+    }
 
     for (let attempt = 0; attempt < 35; attempt += 1) {
       const profile = await fetch(`${baseUrl}/api/auth/me`, {

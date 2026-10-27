@@ -376,6 +376,31 @@ paths:
       responses:
         "200": { description: Student cohort updated }
         "404": { description: Student account not found }
+  /admin/integrations:
+    get:
+      summary: Read provider configuration status without exposing secrets (admin only)
+      responses:
+        "200": { description: Provider status and encryption availability }
+  /admin/integrations/{provider}:
+    put:
+      summary: Save encrypted provider credentials (admin only)
+      parameters:
+        - { in: path, name: provider, required: true, schema: { type: string, enum: [daily, cloudinary, smtp] } }
+      responses:
+        "200": { description: Provider configuration status }
+    delete:
+      summary: Remove encrypted provider override (admin only)
+      parameters:
+        - { in: path, name: provider, required: true, schema: { type: string, enum: [daily, cloudinary, smtp] } }
+      responses:
+        "200": { description: Provider configuration status }
+  /admin/integrations/{provider}/test:
+    post:
+      summary: Test provider credentials (admin only)
+      parameters:
+        - { in: path, name: provider, required: true, schema: { type: string, enum: [daily, cloudinary, smtp] } }
+      responses:
+        "200": { description: Provider connection verified }
   /admin/pending-slides:
     get:
       summary: List learning materials awaiting approval (admin only)

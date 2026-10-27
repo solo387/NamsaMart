@@ -1,15 +1,13 @@
 import { v2 as cloudinary } from "cloudinary";
-import { config } from "../lib/config.js";
 import { HttpError } from "../lib/errors.js";
+import { getIntegrationConfig } from "./provider-settings.js";
 
-export function uploadFile(file: Express.Multer.File, folder: string) {
-  if (!config.CLOUDINARY_CLOUD_NAME || !config.CLOUDINARY_API_KEY || !config.CLOUDINARY_API_SECRET) {
-    throw new HttpError(503, "File uploads are not configured. Contact your administrator.");
-  }
+export async function uploadFile(file: Express.Multer.File, folder: string) {
+  const credentials = await getIntegrationConfig("cloudinary");
   cloudinary.config({
-    cloud_name: config.CLOUDINARY_CLOUD_NAME,
-    api_key: config.CLOUDINARY_API_KEY,
-    api_secret: config.CLOUDINARY_API_SECRET
+    cloud_name: credentials.cloudName,
+    api_key: credentials.apiKey,
+    api_secret: credentials.apiSecret
   });
   return new Promise<{ secure_url: string; public_id: string }>((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(

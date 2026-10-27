@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { io } from "socket.io-client";
 import {
   Activity, Bell, BookOpen, CalendarDays, ChevronDown, CircleHelp, GraduationCap, Home,
-  LogOut, Menu, Moon, Newspaper, ShieldCheck, Sun, UserRound, X
+  KeyRound, LogOut, Menu, Moon, Newspaper, ShieldCheck, Sun, UserRound, X
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "../auth/AuthContext";
@@ -52,8 +52,17 @@ export function AppShell() {
 
   useEffect(() => { setMobileOpen(false); }, [location.pathname]);
 
-  const pageTitle = useMemo(() => mainLinks.find((link) => link.to === location.pathname)?.label ?? "Learning space", [location.pathname]);
-  const links = user?.role === "ADMIN" ? [...mainLinks, { to: "/admin", label: "Administration", icon: ShieldCheck, mobile: false }] : mainLinks;
+  const pageTitle = useMemo(
+    () => location.pathname === "/admin/integrations"
+      ? "Provider integrations"
+      : mainLinks.find((link) => link.to === location.pathname)?.label ?? (location.pathname.startsWith("/admin") ? "Administration" : "Learning space"),
+    [location.pathname]
+  );
+  const links = user?.role === "ADMIN" ? [
+    ...mainLinks,
+    { to: "/admin", label: "Administration", icon: ShieldCheck, mobile: false },
+    { to: "/admin/integrations", label: "Provider integrations", icon: KeyRound, mobile: false }
+  ] : mainLinks;
 
   return (
     <div className="min-h-screen bg-[#f6f8f7] text-slate-900 dark:bg-slate-950 dark:text-white">
@@ -64,7 +73,7 @@ export function AppShell() {
         </Link>
         <nav aria-label="Main navigation" className="flex-1 space-y-1">
           <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">Learning space</p>
-          {links.map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} className={({ isActive }) => navClasses(isActive)}><Icon size={18} aria-hidden="true" /><span>{label}</span></NavLink>)}
+          {links.map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} end={to === "/admin"} className={({ isActive }) => navClasses(isActive)}><Icon size={18} aria-hidden="true" /><span>{label}</span></NavLink>)}
         </nav>
         <div className="rounded-2xl bg-teal-50 p-4 dark:bg-teal-950/50">
           <p className="text-xs font-semibold text-teal-900 dark:text-teal-100">Keep learning together</p>

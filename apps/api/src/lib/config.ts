@@ -23,7 +23,11 @@ export const configSchema = z.object({
   CLOUDINARY_CLOUD_NAME: z.string().optional(),
   CLOUDINARY_API_KEY: z.string().optional(),
   CLOUDINARY_API_SECRET: z.string().optional(),
-  DAILY_API_KEY: z.string().optional()
+  DAILY_API_KEY: z.string().optional(),
+  INTEGRATION_SECRETS_KEY: z.preprocess(
+    (value) => value === "" ? undefined : value,
+    z.string().regex(/^[a-fA-F0-9]{64}$/).optional()
+  )
 }).superRefine((values, context) => {
   if (values.NODE_ENV === "production" && /^(replace|change-this|development|test)/i.test(values.JWT_SECRET)) {
     context.addIssue({

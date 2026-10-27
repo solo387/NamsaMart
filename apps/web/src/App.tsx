@@ -7,6 +7,7 @@ import { Button, Card, Loading } from "./components/ui";
 
 const AuthPage = lazy(() => import("./pages/AuthPages").then(({ AuthPage }) => ({ default: AuthPage })));
 const AdminPage = lazy(() => import("./pages/AdminPage").then(({ AdminPage }) => ({ default: AdminPage })));
+const IntegrationsPage = lazy(() => import("./pages/IntegrationsPage").then(({ IntegrationsPage }) => ({ default: IntegrationsPage })));
 const ClassesPage = lazy(() => import("./pages/ClassesPage").then(({ ClassesPage }) => ({ default: ClassesPage })));
 const DashboardPage = lazy(() => import("./pages/DashboardPage").then(({ DashboardPage }) => ({ default: DashboardPage })));
 const MaterialsPage = lazy(() => import("./pages/MaterialsPage").then(({ MaterialsPage }) => ({ default: MaterialsPage })));
@@ -45,6 +46,7 @@ function AppRoutes() {
       <Route path="/notifications" element={<NotificationsPage />} />
       <Route path="/profile" element={<ProfilePage />} />
       <Route path="/admin" element={<Protected adminOnly><AdminPage /></Protected>} />
+      <Route path="/admin/integrations" element={<Protected adminOnly><IntegrationsPage /></Protected>} />
     </Route>
     <Route path="*" element={<Navigate to="/dashboard" replace />} />
   </Routes>;

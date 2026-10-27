@@ -66,6 +66,14 @@ openapi.yaml              API testing and integration specification
 
 The root `.env` is loaded by the API and Prisma CLI. The web development server proxies `/api` and `/socket.io` to the local API.
 
+To enter provider credentials in the administrator screen locally, set `INTEGRATION_SECRETS_KEY` in `.env` to a generated 64-character hexadecimal key. Generate it with:
+
+```sh
+node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
+```
+
+Keep the same key for the lifetime of the encrypted settings. After running the migrations and signing in as an administrator, open Administration → Provider integrations to add and test Daily.co, Cloudinary, or SMTP settings.
+
 ## Firebase Hosting (web client)
 
 Firebase Hosting can serve the React/Vite PWA. It does not host the Express API or Socket.IO server; deploy those separately to a Node.js service that supports long-lived HTTP/WebSocket connections, such as Cloud Run, and connect that service to the production PostgreSQL database.
@@ -135,6 +143,8 @@ Before deployment, choose a Google Cloud project and region, enable billing and 
 
 Set the exact Firebase Hosting origin as `WEB_ORIGIN` and `APP_URL` (for example, `https://your-firebase-project-id.web.app`; use the custom domain after it is connected). Store a random, unique, at-least-32-character `JWT_SECRET` in Secret Manager as `jwt-secret`. Set optional SMTP, Cloudinary, and Daily.co settings in the Cloud Run service configuration or Secret Manager as appropriate.
 
+Administrators can manage Daily.co, Cloudinary, and SMTP credentials in Administration → Provider integrations. Those values are encrypted in PostgreSQL with AES-256-GCM; configure a separate persistent 32-byte `INTEGRATION_SECRETS_KEY` in Secret Manager before using that screen. Generate it once with `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"`, store it as `integration-secrets-key`, grant the API runtime identity access, and keep a secure backup. Never rotate or lose this key without first decrypting and re-encrypting the stored settings; the API cannot recover them if the key changes. Environment credentials remain supported as a fallback for existing deployments.
+
 From the repository root, substitute your own Google Cloud project ID, region, and Firebase Hosting origin. The example values below are intentionally placeholders:
 
 ```sh
@@ -164,13 +174,13 @@ gcloud run jobs deploy namsamart-migrate \
 gcloud run jobs execute namsamart-migrate --region <region> --wait
 ```
 
-Create Secret Manager versions for the Cloudinary cloud name, API key, and API secret if lecturers will upload materials, past papers, or avatars. The application returns a clear configuration error for uploads if these are absent. Map the secret values to `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET` on the API service. Enable PDF delivery in the Cloudinary product security settings so uploaded PDFs can be embedded for preview. PDFs are uploaded as Cloudinary image assets for browser rendering; PowerPoint and Word files remain downloadable raw assets. Uploads are limited to 25 MB to stay within Cloud Run's HTTP request size limit while the API buffers each file for provider upload.
+Administrators can enter Cloudinary, Daily.co, and SMTP credentials in Administration → Provider integrations after the API encryption key is configured. Alternatively, keep using Secret Manager environment variables. Enable PDF delivery in the Cloudinary product security settings so uploaded PDFs can be embedded for preview. PDFs are uploaded as Cloudinary image assets for browser rendering; PowerPoint and Word files remain downloadable raw assets. Uploads are limited to 25 MB to stay within Cloud Run's HTTP request size limit while the API buffers each file for provider upload.
 
-For live classes and cloud recordings, create a Daily.co account with a paid plan that supports recording and copy its API key from the Daily developer dashboard. Store it in Secret Manager as `daily-api-key`, and grant the Cloud Run runtime service account `roles/secretmanager.secretAccessor` on that secret. Map it to `DAILY_API_KEY` on the API service as shown below. Keep this key server-side; do not put it in a `VITE_*` variable or the frontend build. Without it, classes can be scheduled, but starting a room and joining a live class return a configuration error.
+For live classes and cloud recordings, create a Daily.co account with a paid plan that supports recording and copy its API key from the Daily developer dashboard. Enter it in Administration → Provider integrations after deploying the database migration and setting `INTEGRATION_SECRETS_KEY`. Alternatively, configure it as `DAILY_API_KEY` in Secret Manager. Keep this key server-side; do not put it in a `VITE_*` variable or the frontend build. Without it, classes can be scheduled, but starting a room and joining a live class return a configuration error.
 
 ```sh
-gcloud secrets create daily-api-key --replication-policy=automatic
-printf '%s' "$DAILY_API_KEY" | gcloud secrets versions add daily-api-key --data-file=-
+gcloud secrets create integration-secrets-key --replication-policy=automatic
+node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))" | gcloud secrets versions add integration-secrets-key --data-file=-
 ```
 
 The API uses Daily.co to create private rooms and short-lived lecturer/student meeting tokens. When the lecturer starts a class, their meeting token automatically starts a Daily cloud recording. Ending the class asks Daily to stop recording. Daily stores cloud recordings in the account's recording storage; the app retrieves a fresh, short-lived download link when an authorized student or lecturer opens a past class recording. The temporary link is never saved in the database. Recordings may take a short time to finish processing after class ends. Daily recording is a paid feature, has a three-hour call limit, and is subject to the account's storage, retention, and usage terms. Follow [Daily's recording guide](https://docs.daily.co/docs/guides/features/recording) to review recording settings. For storage in your own bucket, configure [Daily's customer-managed S3 storage](https://docs.daily.co/docs/guides/features/recording/custom-s3-storage) or OCI recording storage. A lecturer can still supply an externally hosted recording URL when ending a class.
@@ -188,10 +198,10 @@ gcloud run deploy namsamart-api \
   --max 1 \
   --memory 1Gi \
   --set-env-vars NODE_ENV=production,TRUST_PROXY=1,WEB_ORIGIN="$WEB_ORIGIN",APP_URL="$WEB_ORIGIN" \
-  --set-secrets DATABASE_URL=database-url:latest,JWT_SECRET=jwt-secret:latest,CLOUDINARY_CLOUD_NAME=cloudinary-cloud-name:latest,CLOUDINARY_API_KEY=cloudinary-api-key:latest,CLOUDINARY_API_SECRET=cloudinary-api-secret:latest,DAILY_API_KEY=daily-api-key:latest
+  --set-secrets DATABASE_URL=database-url:latest,JWT_SECRET=jwt-secret:latest,INTEGRATION_SECRETS_KEY=integration-secrets-key:latest
 ```
 
-If Cloudinary or Daily.co is not configured yet, omit the corresponding secret mappings for the service to start. Material/avatar uploads or live-room creation/joining will remain unavailable, respectively, until the secrets are added and a new Cloud Run revision is deployed.
+If you prefer environment-based provider configuration instead of the admin screen, add the relevant Cloudinary, Daily.co, and SMTP secrets to `--set-secrets`. Settings added in the admin screen are read directly from the encrypted database and take precedence over environment values. Without `INTEGRATION_SECRETS_KEY`, admin-managed provider credentials cannot be saved or decrypted; provider values set through the environment continue to work.
 
 The service must be publicly invokable because browsers call the API directly; application data remains protected by the app's JWT authentication and role/cohort checks. `--session-affinity` helps keep Socket.IO connections on one instance, and `--max 1` avoids splitting the current in-memory Socket.IO rooms and per-process rate limits across Cloud Run instances. This is a deliberate initial capacity limit, not a high-availability or scale-out configuration. Before increasing it, add a shared Socket.IO adapter (for example Redis) and a shared rate-limit store. Cloud Run WebSockets are subject to the configured request timeout and can disconnect; clients must reconnect.
 
@@ -227,6 +237,7 @@ See [.env.example](./.env.example) for the full list.
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | Password-reset mail delivery |
 | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Secure media and profile image uploads |
 | `DAILY_API_KEY` | Private Daily.co rooms/tokens, automatic cloud recordings, and recording download links |
+| `INTEGRATION_SECRETS_KEY` | 32-byte hexadecimal AES-256 key for encrypting provider settings entered by administrators |
 | `SEED_PASSWORD` | Development seed-account password; never use the default in a deployed environment |
 
 The app remains usable for non-provider features without Cloudinary, Daily.co, or SMTP credentials. A request that needs a missing provider returns a clear configuration error. Uploads, live rooms/cloud recordings, and password-reset email delivery require their provider settings.
@@ -239,6 +250,7 @@ The cohort-verification migration places existing and newly registered student a
 
 - Student registration and sign-in, role-aware access, profile editing, password change, and SMTP password reset
 - Student, lecturer, and admin roles; department and level-aware course access; admin user/course management
+- Administrator-only provider integrations for Daily.co, Cloudinary, and SMTP, with encrypted credential storage and connection tests
 - Slides and study-resource search, course/level filtering, bookmarking, uploads up to 25 MB, PDF/MP4 in-app preview, and admin approval
 - Past exam-paper upload and filtering, in-app PDF preview, admin approval, and per-student studied-state tracking
 - Lecturer quiz authoring (multiple choice, true/false, and short answer), private answer keys, timed attempts, scoring, answer review after a lecturer closes the quiz, attempt history, and leaderboard

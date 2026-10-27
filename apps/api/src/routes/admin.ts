@@ -5,9 +5,56 @@ import { z } from "zod";
 import { authenticate, allowRoles } from "../middleware/auth.js";
 import { HttpError } from "../lib/errors.js";
 import { prisma } from "../lib/prisma.js";
+import {
+  getIntegrationSettings,
+  removeIntegrationConfig,
+  saveIntegrationConfig,
+  testIntegrationConfig
+} from "../services/provider-settings.js";
 
 const router = Router();
 router.use(authenticate, allowRoles(Role.ADMIN));
+
+router.get("/integrations", async (_req, res, next) => {
+  try {
+    res.json(await getIntegrationSettings());
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put("/integrations/:provider", async (req, res, next) => {
+  try {
+    const parsedProvider = z.enum(["daily", "cloudinary", "smtp"]).safeParse(req.params.provider);
+    if (!parsedProvider.success) throw new HttpError(404, "Integration provider not found.");
+    await saveIntegrationConfig(parsedProvider.data, req.body);
+    res.json(await getIntegrationSettings());
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/integrations/:provider/test", async (req, res, next) => {
+  try {
+    const parsedProvider = z.enum(["daily", "cloudinary", "smtp"]).safeParse(req.params.provider);
+    if (!parsedProvider.success) throw new HttpError(404, "Integration provider not found.");
+    await testIntegrationConfig(parsedProvider.data);
+    res.json({ message: `${parsedProvider.data} connection verified.` });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete("/integrations/:provider", async (req, res, next) => {
+  try {
+    const parsedProvider = z.enum(["daily", "cloudinary", "smtp"]).safeParse(req.params.provider);
+    if (!parsedProvider.success) throw new HttpError(404, "Integration provider not found.");
+    await removeIntegrationConfig(parsedProvider.data);
+    res.json(await getIntegrationSettings());
+  } catch (error) {
+    next(error);
+  }
+});
 
 router.get("/users", async (_req, res, next) => {
   try {
