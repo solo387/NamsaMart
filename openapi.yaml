@@ -262,6 +262,14 @@ paths:
         - { in: path, name: id, required: true, schema: { type: string } }
       responses:
         "200": { description: Meeting URL }
+  /classes/{id}/recording:
+    get:
+      summary: Get an authorized short-lived Daily.co recording link
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string } }
+      responses:
+        "200": { description: Recording URL }
+        "409": { description: Recording is still processing }
   /classes/{id}/messages:
     get:
       summary: Read live class chat
@@ -277,7 +285,7 @@ paths:
         "201": { description: Message created }
   /classes/{id}/end:
     patch:
-      summary: End a class and optionally attach its recording URL
+      summary: Stop a live class recording and end the class; optionally attach an external recording URL
       parameters:
         - { in: path, name: id, required: true, schema: { type: string } }
       responses:

@@ -166,14 +166,14 @@ gcloud run jobs execute namsamart-migrate --region <region> --wait
 
 Create Secret Manager versions for the Cloudinary cloud name, API key, and API secret if lecturers will upload materials, past papers, or avatars. The application returns a clear configuration error for uploads if these are absent. Map the secret values to `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET` on the API service. Enable PDF delivery in the Cloudinary product security settings so uploaded PDFs can be embedded for preview. PDFs are uploaded as Cloudinary image assets for browser rendering; PowerPoint and Word files remain downloadable raw assets. Uploads are limited to 25 MB to stay within Cloud Run's HTTP request size limit while the API buffers each file for provider upload.
 
-For live classes, create a Daily.co account and copy its API key from the Daily developer dashboard. Store it in Secret Manager as `daily-api-key`, and grant the Cloud Run runtime service account `roles/secretmanager.secretAccessor` on that secret. Map it to `DAILY_API_KEY` on the API service as shown below. Keep this key server-side; do not put it in a `VITE_*` variable or the frontend build. Without it, classes can be scheduled, but starting a room and joining a live class return a configuration error.
+For live classes and cloud recordings, create a Daily.co account with a paid plan that supports recording and copy its API key from the Daily developer dashboard. Store it in Secret Manager as `daily-api-key`, and grant the Cloud Run runtime service account `roles/secretmanager.secretAccessor` on that secret. Map it to `DAILY_API_KEY` on the API service as shown below. Keep this key server-side; do not put it in a `VITE_*` variable or the frontend build. Without it, classes can be scheduled, but starting a room and joining a live class return a configuration error.
 
 ```sh
 gcloud secrets create daily-api-key --replication-policy=automatic
 printf '%s' "$DAILY_API_KEY" | gcloud secrets versions add daily-api-key --data-file=-
 ```
 
-The API uses Daily.co to create private rooms and short-lived lecturer/student meeting tokens. Recording capture is not started or saved automatically: enable recording for the Daily.co account/plan, then provide a hosted recording URL when ending the class.
+The API uses Daily.co to create private rooms and short-lived lecturer/student meeting tokens. When the lecturer starts a class, their meeting token automatically starts a Daily cloud recording. Ending the class asks Daily to stop recording. Daily stores cloud recordings in the account's recording storage; the app retrieves a fresh, short-lived download link when an authorized student or lecturer opens a past class recording. The temporary link is never saved in the database. Recordings may take a short time to finish processing after class ends. Daily recording is a paid feature, has a three-hour call limit, and is subject to the account's storage, retention, and usage terms. Follow [Daily's recording guide](https://docs.daily.co/docs/guides/features/recording) to review recording settings. For storage in your own bucket, configure [Daily's customer-managed S3 storage](https://docs.daily.co/docs/guides/features/recording/custom-s3-storage) or OCI recording storage. A lecturer can still supply an externally hosted recording URL when ending a class.
 
 Deploy the service with Socket.IO connection settings suitable for the current in-memory realtime implementation:
 
@@ -226,10 +226,10 @@ See [.env.example](./.env.example) for the full list.
 | `WEB_ORIGIN`, `APP_URL` | Allowed browser origin and reset-link URL |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | Password-reset mail delivery |
 | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Secure media and profile image uploads |
-| `DAILY_API_KEY` | Private Daily.co room and short-lived meeting token creation |
+| `DAILY_API_KEY` | Private Daily.co rooms/tokens, automatic cloud recordings, and recording download links |
 | `SEED_PASSWORD` | Development seed-account password; never use the default in a deployed environment |
 
-The app remains usable for non-provider features without Cloudinary, Daily.co, or SMTP credentials. A request that needs a missing provider returns a clear configuration error. Uploads, live room creation, and password-reset email delivery require their provider settings.
+The app remains usable for non-provider features without Cloudinary, Daily.co, or SMTP credentials. A request that needs a missing provider returns a clear configuration error. Uploads, live rooms/cloud recordings, and password-reset email delivery require their provider settings.
 
 The API exposes separate liveness and database-backed readiness checks. Login, registration, and password-reset routes have per-process rate limits; deployments with multiple API replicas should configure a shared rate-limit store to enforce limits across instances. Set `TRUST_PROXY` to the exact number of trusted proxy hops so rate limits use the client address without trusting arbitrary forwarded headers. Production requires HTTPS `WEB_ORIGIN` and `APP_URL`. Newly registered student accounts require administrator verification of department and study level before course, learning-material, quiz, or class APIs grant access.
 
@@ -242,7 +242,7 @@ The cohort-verification migration places existing and newly registered student a
 - Slides and study-resource search, course/level filtering, bookmarking, uploads up to 25 MB, PDF/MP4 in-app preview, and admin approval
 - Past exam-paper upload and filtering, in-app PDF preview, admin approval, and per-student studied-state tracking
 - Lecturer quiz authoring (multiple choice, true/false, and short answer), private answer keys, timed attempts, scoring, answer review after a lecturer closes the quiz, attempt history, and leaderboard
-- Class scheduling, private Daily.co room tokens, embedded live class access, persistent Socket.IO chat, and shared recording links
+- Class scheduling, private Daily.co room tokens, automatic cloud recording stored by Daily, authorized on-demand recording links, embedded live class access, and persistent Socket.IO chat
 - Department-filtered announcements, comments, reactions, and live in-app notification badges
 - Responsive desktop sidebar and mobile bottom navigation, keyboard-focus styles, reduced-motion support, and theme toggle
 - Installable PWA shell/static-asset caching. Authenticated API responses are never cached for offline use.
@@ -276,5 +276,5 @@ npm test
 - Run `npm run db:migrate:deploy` as a release step (the Compose API command runs it at startup; Cloud Run uses a separate one-off job) and never run `db:migrate` against production.
 - Bootstrap the first administrator with `npm run admin:bootstrap` using one-time credentials supplied through the deployment environment. Do not run `npm run db:seed` in production; it is blocked when `NODE_ENV=production`.
 - Restrict network access to PostgreSQL. Terminate HTTPS at the hosting ingress/reverse proxy and set `WEB_ORIGIN` and `APP_URL` to the public HTTPS address.
-- Daily.co room creation and participant joining are integrated. Lecturers can attach a hosted recording URL when they end the class; recording capture/hosting must be enabled and configured with the chosen Daily.co plan.
+- Daily.co room creation, participant joining, and cloud recording are integrated. Configure a paid Daily.co plan and the `DAILY_API_KEY` secret to use live classes and automatic recordings. Recordings remain in Daily's configured storage and the app requests temporary download links on demand; use Daily's customer-managed S3 or OCI storage when recordings must be stored in your own bucket.
 - Seed users are for local development only. Do not run the seed against a production database.
